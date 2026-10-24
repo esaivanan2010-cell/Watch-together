@@ -60,6 +60,15 @@ input,select,textarea{width:100%;background:var(--char);border:1px solid #38353f
 #panel{flex:1 1 0;min-height:0;min-width:0;display:flex;flex-direction:column;padding:8px max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left))}
 #msgs{flex:1 1 0;min-height:0;min-width:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:6px 0 10px}
 #chatRow{position:sticky;bottom:0;z-index:4;background:var(--ink);padding:8px 0 calc(var(--sab) + 8px)}
+#chatRow input{min-width:0}
+#mic{flex:none;position:relative;width:44px;height:44px;padding:0;background:transparent;color:var(--dim);display:flex;align-items:center;justify-content:center;border-radius:50%;touch-action:manipulation;transition:color .2s,background .2s}
+#mic:active{background:#ffffff14}
+#mic.live{color:var(--ok)}#mic.wait{color:var(--amber)}
+#mic.live::after,#mic.wait::after{content:"";position:absolute;top:9px;right:9px;width:8px;height:8px;border-radius:50%;background:currentColor}
+#mic.live::after{animation:micp 1.8s ease-out infinite}
+@keyframes micp{0%{box-shadow:0 0 0 0 #6fd49a99}100%{box-shadow:0 0 0 7px #6fd49a00}}
+@media(prefers-reduced-motion:reduce){#mic.live::after{animation:none}}
+#micStat.live{color:var(--ok)}#micStat.wait{color:var(--amber)}#micStat.fail{color:var(--bad)}
 .msg{margin:6px 0;overflow-wrap:anywhere}.msg b{color:var(--amber)}.msg i{color:var(--dim);font-size:12px;font-style:normal;margin-left:6px}
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--char);border-radius:22px 22px 0 0;padding:18px 16px calc(var(--sab) + 18px);transform:translateY(105%);transition:transform .25s;max-height:calc(var(--app-h,100vh)*.85);overflow-y:auto;overscroll-behavior:contain}
 .sheet.open{transform:none}
@@ -105,15 +114,17 @@ button.big{width:100%;padding:15px;font-size:17px;border-radius:16px;margin-bott
   </div></div>
  <div id="panel">
   <div class="row" style="flex:none;margin-bottom:6px"><button id="srcBtn">Choose video</button><button id="modeBtn">Control mode</button><button id="endBtn">End room</button></div>
-  <div id="members" style="flex:none"></div><div class="small" id="hostWarn"></div>
+  <div id="members" style="flex:none"></div><div class="small" id="hostWarn"></div><div class="small" id="micStat" aria-live="polite"></div>
   <div id="msgs"></div>
-  <div class="row" id="chatRow" style="flex:none"><input id="chatIn" maxlength="500" placeholder="Message" autocomplete="off" enterkeyhint="send"><button id="send" class="pri" style="flex:none">Send</button></div>
+  <div class="row" id="chatRow" style="flex:none"><input id="chatIn" maxlength="500" placeholder="Message" autocomplete="off" enterkeyhint="send"><button id="mic" type="button" aria-pressed="false" aria-label="Turn microphone on" title="Microphone"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg></button><button id="send" class="pri" style="flex:none">Send</button></div>
  </div>
 </section>
 
 <div class="sheet" id="sSet"><h2>Settings</h2><p class="small">Your name</p><input id="nm" maxlength="24">
  <p class="small">Firebase web config (JSON from Project settings, must include databaseURL)</p>
  <textarea id="fb" rows="6" spellcheck="false" placeholder='{"apiKey":"...","authDomain":"...","databaseURL":"...","projectId":"...","appId":"..."}'></textarea>
+ <p class="small">TURN server for voice chat (optional, JSON). Only needed if voice fails on some networks.</p>
+ <textarea id="turn" rows="3" spellcheck="false" placeholder='{"urls":"turn:your.host:3478","username":"...","credential":"..."}'></textarea>
  <div class="err" id="setErr"></div><div class="row"><button id="setSave" class="pri">Save</button><button data-close>Close</button></div></div>
 <div class="sheet" id="sSrc"><h2>Choose video</h2><p class="small">YouTube link (watch or youtu.be)</p><input id="ytIn" placeholder="https://youtu.be/...">
  <div class="err" id="srcErr"></div><button id="ytGo" class="pri" style="width:100%">Use YouTube video</button>
@@ -149,10 +160,11 @@ const show=id=>{document.querySelectorAll('.screen').forEach(e=>e.classList.togg
 const sheet=(id,o)=>$(id).classList.toggle('open',o);
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>document.querySelectorAll('.sheet').forEach(s=>s.classList.remove('open')));
 const name=()=>(localStorage.wt_name||'Guest').replace(/[\u0000-\u001f<>]/g,'').slice(0,24)||'Guest';
-$('gear').onclick=()=>{$('nm').value=localStorage.wt_name||'';$('fb').value=localStorage.wt_fb||'';$('setErr').textContent='';sheet('sSet',true)};
+$('gear').onclick=()=>{$('nm').value=localStorage.wt_name||'';$('fb').value=localStorage.wt_fb||'';$('turn').value=localStorage.wt_turn||'';$('setErr').textContent='';sheet('sSet',true)};
 $('setSave').onclick=()=>{const f=$('fb').value.trim();
  if(f){try{const j=JSON.parse(f);if(!j.apiKey||!j.databaseURL)throw 0}catch{$('setErr').textContent='Config must be valid JSON with apiKey and databaseURL.';return}}
- localStorage.wt_name=$('nm').value.trim()||'Guest';localStorage.wt_fb=f;S.db=null;sheet('sSet',false);status('Not connected',0);toast('Settings saved')};
+ const t=$('turn').value.trim();if(t&&!turnParse(t)){$('setErr').textContent='TURN config must be JSON with urls (turn: or turns:), username and credential.';return}
+ localStorage.wt_name=$('nm').value.trim()||'Guest';localStorage.wt_fb=f;localStorage.wt_turn=t;S.db=null;sheet('sSet',false);status('Not connected',0);toast('Settings saved')};
 function status(t,k){$('cstat').textContent=t;$('cdot').className='dot '+(k===1?'on':k===2?'bad':'')}
 const recent=()=>{let r=[];try{r=JSON.parse(localStorage.wt_recent||'[]')}catch{}return r};
 function drawRecent(){const r=recent();const e=$('recent');e.textContent='';if(!r.length){e.textContent='Rooms you open will show up here.';return}
@@ -200,8 +212,9 @@ function enter(code){S.code=code;S.meta=null;S.members={};S.pb=null;S.rev=0;S.sr
  sub('members',s=>{S.members=s.val()||{};drawMembers()});
  sub('playback',s=>{const p=s.val();if(p&&p.rev>S.rev){S.rev=p.rev;S.pb=p;apply()}});
  S.un.push(S.fb.onValue(S.fb.query(R(`rooms/${code}/chat`),S.fb.limitToLast(100)),s=>drawChat(s.val()||{})));
+ voiceEnter();
 }
-async function leave(silent){S.un.forEach(u=>u());S.un=[];destroyPlayer();
+async function leave(silent){voiceLeave();S.un.forEach(u=>u());S.un=[];destroyPlayer();
  if(S.code&&S.db)try{await S.fb.set(R(`rooms/${S.code}/members/${S.uid}/online`),false)}catch{}
  S.code=null;show('home');$('msgs').textContent='';if(!silent&&history.state&&history.state.r)history.back()}
 $('leave').onclick=()=>leave();
@@ -320,6 +333,129 @@ addEventListener('pointercancel',()=>{const was=ctlDown;ctlDown=false;if(!was)re
 $('spd').addEventListener('pointerdown',()=>{holdUntil=Date.now()+10000});
 ['change','blur'].forEach(t=>$('spd').addEventListener(t,()=>{holdUntil=0;keepAlive()}));
 function ctlShow(on){$('bar').hidden=!on;$('center').hidden=!on;wasPlaying=null;if(on)wake();else hideCtl()}
+
+/* ---------- voice chat: WebRTC audio, signaled through the existing Firebase room ---------- */
+// STUN lets phones discover their public address (enough for most Wi-Fi/mobile networks).
+// TURN relays audio when no direct path exists (strict NAT, some carriers, corporate Wi-Fi).
+// No TURN server is built in: paste YOUR OWN in Settings (stored only on this device). Nothing is invented or assumed working.
+const STUN=[{urls:['stun:stun.l.google.com:19302','stun:stun1.l.google.com:19302']}];
+function turnParse(t){try{let j=JSON.parse(t);j=Array.isArray(j)?j:[j];
+ return j.length&&j.every(x=>x&&x.urls&&[].concat(x.urls).every(u=>/^turns?:/.test(u))&&x.username&&x.credential)?j:null}catch{return null}}
+const iceServers=()=>STUN.concat(turnParse(localStorage.wt_turn||'')||[]);
+const hasTurn=()=>iceServers().length>STUN.length;
+// Signaling path: rooms/<code>/voice/sig/<recipientUid>/<pushId> = {from,sid,type,data,ts}
+// If your Realtime Database rules only allow specific children under rooms/<code>, add this next to them:
+// "voice":{"sig":{"$to":{".read":"auth!=null&&auth.uid===$to","$m":{".write":"auth!=null&&(newData.child('from').val()===auth.uid||(!newData.exists()&&auth.uid===$to))"}}}}
+const VC={mic:false,busy:false,used:false,err:'',stream:null,track:null,peers:{},tries:{},q:Promise.resolve(),rg:0,mg:0,un:null,gf:null,t0:0,sigErr:false,spk:'',lv:null};
+const vOK=()=>!!(window.isSecureContext&&window.RTCPeerConnection&&navigator.mediaDevices&&navigator.mediaDevices.getUserMedia);
+const vref=p=>R(`rooms/${S.code}/voice/${p}`);
+const newSid=()=>Array.from(crypto.getRandomValues(new Uint8Array(6)),b=>b.toString(16).padStart(2,'0')).join('');
+async function vsend(to,sid,type,d){if(!S.code||!S.db)return;
+ try{await S.fb.set(S.fb.push(vref(`sig/${to}`)),{from:S.uid,sid,type,data:JSON.stringify(d),ts:now()})}
+ catch{if(type!=='ice'){toast('Voice signaling failed. Check your Firebase rules for the "voice" path.');if(VC.mic)micOff({err:'Connection Failed'})}}}
+function vNew(uid,sid,role){
+ const pc=new RTCPeerConnection({iceServers:iceServers(),bundlePolicy:'max-bundle',iceCandidatePoolSize:1});
+ const a=document.createElement('audio');a.autoplay=true;a.setAttribute('playsinline','');a.hidden=true;document.body.appendChild(a);
+ const p={uid,sid,role,pc,a,pend:[],hasRemote:false,up:false,dead:false,tr:null,join:(S.members[uid]||{}).joinedAt};
+ pc.onicecandidate=e=>{if(e.candidate&&!p.dead)vsend(uid,sid,'ice',e.candidate.toJSON())};
+ pc.ontrack=e=>{a.srcObject=new MediaStream([e.track]);vPlay(p)};
+ pc.onconnectionstatechange=pc.oniceconnectionstatechange=()=>vState(p);
+ p.w=setTimeout(()=>{if(!p.up)vDrop(p)},12000); // never connected: give up on this attempt
+ VC.peers[uid]=p;return p}
+function vClose(p){if(p.dead)return;p.dead=true;clearTimeout(p.w);clearTimeout(p.g);const pc=p.pc;
+ pc.onicecandidate=pc.ontrack=pc.onconnectionstatechange=pc.oniceconnectionstatechange=null;
+ try{pc.close()}catch{}
+ p.a.pause();p.a.srcObject=null;p.a.remove();if(VC.peers[p.uid]===p)delete VC.peers[p.uid]}
+function vState(p){if(p.dead)return;const s=p.pc.connectionState||p.pc.iceConnectionState;clearTimeout(p.g);
+ if(s==='connected'||s==='completed'){if(!p.up){p.up=true;clearTimeout(p.w);VC.tries[p.uid]=0;vNote(p)}}
+ else{p.up=false;if(s==='disconnected')p.g=setTimeout(()=>vDrop(p),6000);else if(s==='failed')return vDrop(p)}
+ vRender()}
+function vDrop(p){if(p.dead)return;const id=p.uid;vClose(p);
+ if(VC.mic&&S.code){const n=VC.tries[id]=(VC.tries[id]||0)+1;
+  if(n>=3&&!Object.values(VC.peers).some(x=>x.up)){
+   toast(hasTurn()?'Voice connection failed. Check your network and TURN settings.':'Voice connection failed. This network may need a TURN relay server (add one in Settings).');
+   micOff({err:'Connection Failed'});return}
+  const g=VC.mg;setTimeout(()=>{if(g===VC.mg)vSync()},700*n)}
+ vRender()}
+async function vNote(p){try{const st=await p.pc.getStats();let id;st.forEach(r=>{if(r.type==='transport'&&r.selectedCandidatePairId)id=r.selectedCandidatePairId});
+ const pr=id&&st.get(id),l=pr&&st.get(pr.localCandidateId),r=pr&&st.get(pr.remoteCandidateId);
+ console.info('[voice] connected via',l&&l.candidateType,'/',r&&r.candidateType)}catch{}}
+function vPlay(p){p.a.play().catch(e=>{if(!e||e.name!=='NotAllowedError'||VC.gf)return;toast('Tap the screen to hear voice chat.');
+ VC.gf=()=>{removeEventListener('pointerdown',VC.gf,true);VC.gf=null;Object.values(VC.peers).forEach(x=>x.a.play().catch(()=>{}))};addEventListener('pointerdown',VC.gf,true)})}
+const vAttach=p=>{if(p.tr&&VC.track)p.tr.sender.replaceTrack(VC.track).catch(()=>{})};
+async function vFlush(p){p.hasRemote=true;for(const c of p.pend.splice(0))await p.pc.addIceCandidate(c).catch(()=>{})}
+async function vOffer(id){const p=vNew(id,newSid(),'offerer');
+ try{p.tr=p.pc.addTransceiver(VC.track,{direction:'sendrecv',streams:[VC.stream]});
+  await p.pc.setLocalDescription(await p.pc.createOffer());if(p.dead)return;
+  vsend(id,p.sid,'offer',p.pc.localDescription)}catch{vDrop(p)}}
+async function vHandle(m,g){
+ if(g!==VC.rg||!S.code||m.from===S.uid||!(m.ts>=VC.t0))return;
+ const d=m.data?JSON.parse(m.data):null;let p=VC.peers[m.from];
+ if(m.type==='offer'){
+  if(!d||!vOK()||(p&&p.sid===m.sid))return;
+  if(p&&p.role==='offerer'&&!p.hasRemote&&S.uid<m.from)return; // both offered at once: the lower uid keeps its offer
+  if(p)vClose(p);
+  p=vNew(m.from,m.sid,'answerer'); // listening needs no microphone
+  await p.pc.setRemoteDescription(d);if(p.dead)return;await vFlush(p);
+  const tr=p.pc.getTransceivers().find(t=>t.receiver.track&&t.receiver.track.kind==='audio');
+  if(tr){tr.direction='sendrecv';p.tr=tr;vAttach(p)} // lets this user turn the mic on later without renegotiating
+  await p.pc.setLocalDescription(await p.pc.createAnswer());if(p.dead)return;
+  vsend(m.from,p.sid,'answer',p.pc.localDescription);vRender()}
+ else if(m.type==='answer'){if(p&&p.sid===m.sid&&p.role==='offerer'&&!p.hasRemote&&d){await p.pc.setRemoteDescription(d);if(!p.dead)await vFlush(p)}}
+ else if(m.type==='ice'){if(p&&p.sid===m.sid&&d){if(p.hasRemote)await p.pc.addIceCandidate(d).catch(()=>{});else p.pend.push(d)}}}
+function vSync(){if(!S.code||!S.db)return;
+ Object.values(VC.peers).forEach(p=>{const m=S.members[p.uid];
+  if(m&&(!m.online||(p.role==='offerer'&&p.join&&m.joinedAt&&p.join!==m.joinedAt)))vClose(p)}); // left, or rejoined with a fresh session
+ if(VC.mic&&vOK())Object.entries(S.members).forEach(([id,m])=>{if(id!==S.uid&&m&&m.online&&!VC.peers[id]&&(VC.tries[id]||0)<3)vOffer(id)});
+ vRender()}
+function vRender(){const b=$('mic'),s=$('micStat'),up=Object.values(VC.peers).some(p=>p.up),
+ others=Object.entries(S.members||{}).some(([id,m])=>id!==S.uid&&m&&m.online);let k='',t='';
+ if(VC.busy||(VC.mic&&!up&&others)){k='wait';t='Connecting...'}
+ else if(VC.mic){k='live';t=up?'Mic On':'Mic On · waiting for others'}
+ else if(VC.err){k='fail';t=VC.err}
+ else if(up)t='Mic Off · voice connected';
+ else if(VC.used)t='Mic Off';
+ b.classList.toggle('live',k==='live');b.classList.toggle('wait',k==='wait');
+ b.setAttribute('aria-pressed',String(VC.mic));b.setAttribute('aria-label',VC.mic?'Turn microphone off':'Turn microphone on');
+ if(VC.spk&&up&&k!=='wait'&&k!=='fail')t=(VC.mic?'Mic On':'Mic Off')+' · '+VC.spk+' speaking';
+ s.textContent=t;s.className='small '+k}
+async function vLevels(){const n=[];
+ for(const p of Object.values(VC.peers)){if(!p.up)continue;try{(await p.pc.getStats()).forEach(r=>{if(r.type==='inbound-rtp'&&r.kind==='audio'&&r.audioLevel>.02)n.push((S.members[p.uid]||{}).name||'Someone')})}catch{}}
+ const k=n.join(', ');if(k!==VC.spk){VC.spk=k;vRender()}}
+async function micOn(){
+ if(VC.mic||VC.busy||!S.code)return;
+ if(!vOK()){toast(window.isSecureContext?'Voice chat is not supported in this browser.':'Voice chat needs a secure (HTTPS) page.');return}
+ if(VC.sigErr){VC.err='Connection Failed';vRender();toast('Voice signaling is blocked by your Firebase rules. See the voice comment in the code.');return}
+ const g=VC.mg;VC.busy=true;VC.err='';vRender();let st;
+ try{st=await navigator.mediaDevices.getUserMedia({audio:{echoCancellation:true,noiseSuppression:true,autoGainControl:true,channelCount:1,latency:{ideal:.02}},video:false})}
+ catch(e){if(g!==VC.mg)return;VC.busy=false;const n=e&&e.name;
+  VC.err=n==='NotAllowedError'||n==='SecurityError'?'Mic permission denied':n==='NotFoundError'?'No microphone found':n==='NotReadableError'?'Microphone is busy':'Mic unavailable';
+  vRender();toast(VC.err==='Mic permission denied'?'Microphone access was denied. Allow it in your browser site settings to use voice chat.':VC.err+'.');return}
+ if(g!==VC.mg){st.getTracks().forEach(t=>t.stop());return}
+ const t=st.getAudioTracks()[0];VC.stream=st;VC.track=t;VC.mic=true;VC.busy=false;VC.used=true;VC.tries={};
+ t.onended=()=>{if(VC.track===t){toast('Microphone disconnected.');micOff()}};
+ Object.values(VC.peers).forEach(vAttach);vSync()}
+function micOff(o){o=o||{};VC.mg++;VC.mic=false;VC.busy=false;
+ if(VC.track){VC.track.enabled=false;VC.track.onended=null} // silence immediately, then release the device
+ if(VC.stream)VC.stream.getTracks().forEach(t=>t.stop());
+ Object.values(VC.peers).forEach(p=>{if(p.tr)p.tr.sender.replaceTrack(null).catch(()=>{})}); // connections stay up so you can still hear
+ VC.stream=VC.track=null;VC.tries={};VC.err=o.err||'';vRender()}
+function voiceEnter(){voiceLeave();VC.t0=now()-5000;const g=VC.rg;
+ VC.un=S.fb.onChildAdded(vref(`sig/${S.uid}`),s=>{const m=s.val();S.fb.remove(s.ref).catch(()=>{});
+  if(m&&g===VC.rg)VC.q=VC.q.then(()=>vHandle(m,g)).catch(e=>console.warn('[voice]',e))},()=>{VC.sigErr=true});
+ S.un.push(S.fb.onValue(R(`rooms/${S.code}/members`),()=>vSync()));
+ VC.lv=setInterval(()=>{if(Object.values(VC.peers).some(p=>p.up))vLevels()},600);vRender()}
+function voiceLeave(){VC.rg++;VC.mg++;clearInterval(VC.lv);VC.lv=null;VC.spk='';if(VC.un){VC.un();VC.un=null}
+ Object.values(VC.peers).forEach(p=>vClose(p));VC.peers={};
+ if(VC.track)VC.track.enabled=false;if(VC.stream)VC.stream.getTracks().forEach(t=>t.stop());
+ VC.stream=VC.track=null;VC.mic=VC.busy=VC.used=VC.sigErr=false;VC.err='';VC.tries={};VC.q=Promise.resolve();
+ if(VC.gf){removeEventListener('pointerdown',VC.gf,true);VC.gf=null}
+ if(S.code&&S.db&&S.uid)try{S.fb.remove(vref(`sig/${S.uid}`)).catch(()=>{})}catch{}
+ vRender()}
+$('mic').onclick=()=>VC.mic||VC.busy?micOff():micOn();
+$('mic').addEventListener('mousedown',e=>e.preventDefault()); // keep the keyboard open when tapping the mic
+addEventListener('pagehide',voiceLeave);
+addEventListener('visibilitychange',()=>{if(!document.hidden)Object.values(VC.peers).forEach(p=>{if(p.a.paused&&p.a.srcObject)p.a.play().catch(()=>{})})}); // resume voice after returning to the app
 
 /* ---------- viewport / keyboard fit + chat reachability ---------- */
 const vv=window.visualViewport,msgsEl=$('msgs');let stick=true;

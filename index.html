@@ -29,7 +29,7 @@ input,select,textarea{width:100%;background:var(--char);border:1px solid #38353f
 .err{color:var(--bad);min-height:1.2em;font-size:14px;margin:6px 0}
 .small{color:var(--dim);font-size:13px}
 .chip{display:inline-block;background:var(--char2);border-radius:20px;padding:4px 12px;margin:0 8px 8px 0;font-size:14px}
-#room{padding:0;display:none;flex-direction:column;overflow-x:hidden;-webkit-overflow-scrolling:touch;top:var(--app-top,0px);bottom:auto;height:var(--app-h,100%)}
+#room{padding:0;display:none;flex-direction:column;overflow:hidden;-webkit-overflow-scrolling:touch;top:var(--app-top,0px);bottom:auto;height:var(--app-h,100%)}
 #room.on{display:flex}
 #roomHead{flex:none;padding:calc(var(--sat) + 8px) max(12px,env(safe-area-inset-right)) 8px max(12px,env(safe-area-inset-left));display:flex;justify-content:space-between;align-items:center;gap:8px}
 #stage{position:relative;background:#000;width:100%;aspect-ratio:16/9;max-height:calc(var(--app-h,100vh)*.56);flex:none;display:flex;flex-direction:column}
@@ -57,10 +57,10 @@ input,select,textarea{width:100%;background:var(--char);border:1px solid #38353f
 #bar .row{gap:6px;margin-top:4px}#bar button{padding:8px 10px;flex:none;min-width:40px;background:#fff1}
 #bar input[type=range]{padding:0;border:0;background:none;accent-color:var(--amber);touch-action:none}
 #bar select{width:auto;padding:6px}
-#panel{flex:1 0 auto;display:flex;flex-direction:column;padding:8px max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left))}
-#msgs{flex:1 1 0;min-height:140px;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:6px 0 10px}
+#panel{flex:1 1 0;min-height:0;min-width:0;display:flex;flex-direction:column;padding:8px max(12px,env(safe-area-inset-right)) 0 max(12px,env(safe-area-inset-left))}
+#msgs{flex:1 1 0;min-height:0;min-width:0;overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain;-webkit-overflow-scrolling:touch;padding:6px 0 10px}
 #chatRow{position:sticky;bottom:0;z-index:4;background:var(--ink);padding:8px 0 calc(var(--sab) + 8px)}
-.msg{margin:6px 0}.msg b{color:var(--amber)}.msg i{color:var(--dim);font-size:12px;font-style:normal;margin-left:6px}
+.msg{margin:6px 0;overflow-wrap:anywhere}.msg b{color:var(--amber)}.msg i{color:var(--dim);font-size:12px;font-style:normal;margin-left:6px}
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--char);border-radius:22px 22px 0 0;padding:18px 16px calc(var(--sab) + 18px);transform:translateY(105%);transition:transform .25s;max-height:calc(var(--app-h,100vh)*.85);overflow-y:auto;overscroll-behavior:contain}
 .sheet.open{transform:none}
 #toast{position:fixed;left:50%;top:calc(var(--sat) + 10px);transform:translateX(-50%);background:var(--char2);padding:10px 16px;border-radius:14px;z-index:120;display:none;max-width:90%}
@@ -329,7 +329,7 @@ function fitRoom(){const rs=document.documentElement.style;
  if(stick)msgsEl.scrollTop=msgsEl.scrollHeight}
 if(vv){vv.addEventListener('resize',fitRoom);vv.addEventListener('scroll',fitRoom)}
 addEventListener('resize',fitRoom);addEventListener('orientationchange',fitRoom);fitRoom();
-$('chatIn').addEventListener('focus',()=>setTimeout(()=>{$('chatRow').scrollIntoView({block:'nearest'});if(stick)msgsEl.scrollTop=msgsEl.scrollHeight},350));
+$('chatIn').addEventListener('focus',()=>setTimeout(()=>{if(stick)msgsEl.scrollTop=msgsEl.scrollHeight},350));
 $('send').addEventListener('mousedown',e=>e.preventDefault()); // keep the keyboard open when tapping Send
 addEventListener('beforeunload',()=>{if(objUrl)URL.revokeObjectURL(objUrl)});
 

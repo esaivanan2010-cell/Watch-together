@@ -91,7 +91,7 @@ button.big{width:100%;padding:15px;font-size:17px;border-radius:16px;margin-bott
  <div class="card"><h2>Recent rooms</h2><div id="recent" class="small">Rooms you open will show up here.</div></div>
 </main>
 
-<section id="room">
+<section id="room" class="screen">
  <div id="roomHead"><div><strong id="rcode"></strong><div class="small" id="rmode"></div></div>
   <div class="row" style="flex:none"><button id="copy">Copy invite</button><button id="leave">Leave</button></div></div>
  <div id="stage" class="hide"><div id="media"><div id="ytBox"></div><video id="vid" playsinline hidden></video><div id="tap"></div><div id="center" hidden><button id="back" aria-label="Back 10 seconds"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 3-6.2"/><path d="M4 4v4h4"/><text x="12" y="15.5" text-anchor="middle" font-size="8" fill="currentColor" stroke="none" font-family="system-ui">10</text></svg></button><button id="pp" aria-label="Play or pause"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button><button id="fwd" aria-label="Forward 10 seconds"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v4h-4"/><text x="12" y="15.5" text-anchor="middle" font-size="8" fill="currentColor" stroke="none" font-family="system-ui">10</text></svg></button></div><div id="ov"><span id="ovt">No video yet</span></div></div>
@@ -122,7 +122,7 @@ button.big{width:100%;padding:15px;font-size:17px;border-radius:16px;margin-bott
 
 <script type="module">
 const $=id=>document.getElementById(id),SPEEDS=[.25,.5,.75,1,1.25,1.5,1.75,2],TOL=.75,V='10.12.2';
-const S={uid:null,db:null,fb:null,code:null,meta:null,members:{},pb:null,rev:0,offset:0,player:null,src:null,un:[],lastSend:0};
+const S={uid:null,db:null,fb:null,code:null,meta:null,members:{},pb:null,rev:0,offset:0,player:null,src:null,un:[],lastSend:0,app:null};
 const toast=m=>{const t=$('toast');t.textContent=m;t.style.display='block';clearTimeout(toast.t);toast.t=setTimeout(()=>t.style.display='none',3500)};
 const fmt=s=>{s=Math.max(0,Math.floor(s||0));return Math.floor(s/60)+':'+String(s%60).padStart(2,'0')};
 const now=()=>Date.now()+S.offset;
@@ -159,15 +159,17 @@ function drawRecent(){const r=recent();const e=$('recent');e.textContent='';if(!
 drawRecent();
 
 /* ---------- Firebase (loaded on demand so the UI works offline) ---------- */
-async function connect(){
- if(S.db)return;
+let connecting=null;
+const connect=()=>S.db?Promise.resolve():(connecting=connecting||doConnect().finally(()=>{connecting=null}));
+async function doConnect(){
  let cfg;try{cfg=JSON.parse(localStorage.wt_fb||'')}catch{throw new Error('Add your Firebase config in Settings first.')}
  if(!navigator.onLine)throw new Error('No internet connection.');
  status('Connecting...',0);
  const w=p=>Promise.race([p,new Promise((_,r)=>setTimeout(()=>r(new Error('Connection timed out. Check your internet and Firebase config.')),12000))]);
  try{
   const [A,Au,D]=await w(Promise.all([import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`),import(`https://www.gstatic.com/firebasejs/${V}/firebase-auth.js`),import(`https://www.gstatic.com/firebasejs/${V}/firebase-database.js`)]));
-  const app=A.initializeApp(cfg),auth=Au.getAuth(app);
+  if(S.app){try{await A.deleteApp(S.app)}catch{}S.app=null}
+  const app=S.app=A.initializeApp(cfg),auth=Au.getAuth(app);
   const cred=await w(Au.signInAnonymously(auth));S.uid=cred.user.uid;S.db=D.getDatabase(app);S.fb=D;
   S.fb.onValue(S.fb.ref(S.db,'.info/serverTimeOffset'),s=>S.offset=s.val()||0);
   S.fb.onValue(S.fb.ref(S.db,'.info/connected'),s=>status(s.val()?'Connected':'Reconnecting...',s.val()?1:2));
@@ -241,7 +243,7 @@ function overlay(t){$('ovt').textContent=t||'';$('ov').style.display=t?'flex':'n
 function loadSource(s){const key=s?JSON.stringify(s):'';if(key===S.src)return;destroyPlayer();S.src=key;
  if(!s)return overlay(S.meta.hostId===S.uid?'Tap "Choose video" to begin':'Waiting for the host to choose a video');
  
- if(s.type==='youtube')initYT(s.id);else initLocal()}
+ if(s.type==='youtube'){if(/^[\w-]{11}$/.test(s.id||''))initYT(s.id);else overlay('The host sent an invalid YouTube link.')}else initLocal()}
 function initLocal(){overlay('Select your copy of the video');vid.hidden=false;
  const pick=()=>{if(S.player)return;$('file').click()};$('ov').style.pointerEvents='auto';$('ov').onclick=pick;
  $('file').onchange=()=>{const f=$('file').files[0];if(!f)return;if(!vid.canPlayType(f.type||'video/mp4')&&!f.type.startsWith('video/'))return toast('That file is not a supported video.');
@@ -254,27 +256,29 @@ function initLocal(){overlay('Select your copy of the video');vid.hidden=false;
  $('file').value=''}
 const localAdapter=()=>({ready:true,time:()=>vid.currentTime,dur:()=>vid.duration||0,seek:t=>{vid.currentTime=t},rate:r=>{vid.playbackRate=r},
  play:()=>vid.play().catch(()=>overlay('Tap the screen to start playback')),pause:()=>vid.pause(),playing:()=>!vid.paused,vol:v=>{vid.volume=v},mute:m=>{vid.muted=m}});
-function initYT(id){overlay('Loading YouTube...');ctlShow(true);
- const make=()=>{const box=document.createElement('div');$('ytBox').appendChild(box);
+function initYT(id){overlay('Loading YouTube...');ctlShow(true);const mine=S.src;let failed=false;
+ const make=()=>{if(S.src!==mine)return;const box=document.createElement('div');$('ytBox').appendChild(box);
   const p=new YT.Player(box,{videoId:id,width:'100%',height:'100%',playerVars:{controls:0,playsinline:1,rel:0,disablekb:1,fs:0},events:{
    onReady:()=>{S.player={ready:true,destroy:()=>p.destroy(),time:()=>p.getCurrentTime(),dur:()=>p.getDuration(),seek:t=>p.seekTo(t,true),rate:r=>p.setPlaybackRate(r),
      play:()=>p.playVideo(),pause:()=>p.pauseVideo(),playing:()=>p.getPlayerState()===1,vol:v=>p.setVolume(v*100),mute:m=>m?p.mute():p.unMute()};overlay('');apply();ctlLoop()},
-   onStateChange:e=>overlay(e.data===3?'Buffering...':''),
-   onError:e=>{const msg={2:'This YouTube link is invalid.',5:'YouTube could not play this video here.',100:'This video was removed or is private.',101:'The owner does not allow embedding.',150:'The owner does not allow embedding.',153:'YouTube blocked playback in this app.'}[e.data]||'YouTube playback failed.';
-    overlay(msg+' Synchronized playback is unavailable. Open it on YouTube instead.');$('ov').style.pointerEvents='auto';$('ov').onclick=()=>window.open('https://www.youtube.com/watch?v='+id,'_blank')}}})};
+   onStateChange:e=>{if(!failed)overlay(e.data===3?'Buffering...':'')},
+   onError:e=>{failed=true;const msg={2:'This YouTube link is invalid.',5:'YouTube could not play this video here.',100:'This video was removed or is private.',101:'The owner does not allow embedding.',150:'The owner does not allow embedding.',153:'YouTube blocked playback in this app.'}[e.data]||'YouTube playback failed.';
+    overlay(msg+' Synchronized playback is unavailable. Open it on YouTube instead.');$('ov').style.pointerEvents='auto';$('ov').onclick=()=>window.open('https://www.youtube.com/watch?v='+encodeURIComponent(id),'_blank')}}})};
  if(window.YT&&YT.Player)return make();
- window.onYouTubeIframeAPIReady=make;if(!ytReady){ytReady=1;const s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';s.onerror=()=>overlay('Could not load YouTube. Check your connection.');document.head.appendChild(s)}}
+ window.onYouTubeIframeAPIReady=make;if(!ytReady){ytReady=1;const s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';s.onerror=()=>{ytReady=null;s.remove();overlay('Could not load YouTube. Check your connection.')};document.head.appendChild(s)}}
 
 /* ---------- sync + controls ---------- */
 const guard={n:0};
 const IC={play:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',pause:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>',
  vol:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>',muted:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9l5 6M21 9l-5 6"/></svg>'};
 function apply(){const p=S.pb,pl=S.player;if(!p||!pl||!pl.ready)return;const d=pl.dur()||Infinity,e=expected(p,now(),d);
- guard.n++;try{if(pl.rate)pl.rate(p.speed);if(Math.abs(pl.time()-e)>TOL)pl.seek(e);p.playing?pl.play():pl.pause()}finally{setTimeout(()=>guard.n--,300)}
+ guard.n++;try{if(pl.rate)pl.rate(p.speed);if(Math.abs(pl.time()-e)>TOL)pl.seek(e);p.playing&&e<d?pl.play():pl.pause()}finally{setTimeout(()=>guard.n--,300)}
  $('pp').innerHTML=p.playing?IC.pause:IC.play;$('spd').value=p.speed}
 async function act(a){if(!canCtl()){toast(S.meta&&S.meta.controlMode==='host'?'Only the host controls playback.':'You cannot control playback.');apply();return}
  try{await S.fb.runTransaction(R(`rooms/${S.code}/playback`),cur=>nextState(cur,a,now())||undefined)}catch{toast('Sync failed. Check your connection.')}}
-$('pp').onclick=()=>act({type:S.pb&&S.pb.playing?'pause':'play'});
+$('pp').onclick=async()=>{const d=S.player&&S.player.dur();
+ if(canCtl()&&d&&expected(S.pb,now())>=d){await act({type:'seek',to:0});return act({type:'play'})}
+ act({type:S.pb&&S.pb.playing?'pause':'play'})};
 const jump=d=>S.player&&act({type:'seek',to:Math.min(Math.max(0,expected(S.pb,now())+d),S.player.dur()||1e9)});
 $('back').onclick=()=>jump(-10);$('fwd').onclick=()=>jump(10);
 SPEEDS.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s+'x';$('spd').appendChild(o)});$('spd').value=1;

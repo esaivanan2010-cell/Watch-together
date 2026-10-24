@@ -64,7 +64,7 @@ input,select,textarea{width:100%;background:var(--char);border:1px solid #38353f
 .sheet{position:fixed;left:0;right:0;bottom:0;z-index:50;background:var(--char);border-radius:22px 22px 0 0;padding:18px 16px calc(var(--sab) + 18px);transform:translateY(105%);transition:transform .25s;max-height:calc(var(--app-h,100vh)*.85);overflow-y:auto;overscroll-behavior:contain}
 .sheet.open{transform:none}
 #toast{position:fixed;left:50%;top:calc(var(--sat) + 10px);transform:translateX(-50%);background:var(--char2);padding:10px 16px;border-radius:14px;z-index:120;display:none;max-width:90%}
-@media(orientation:landscape) and (max-height:500px){#room.on{flex-direction:row;overflow:hidden}#stage{max-height:none;height:100%;width:62%;aspect-ratio:auto}#panel{width:38%;height:100%;flex:none;overflow-y:auto;overscroll-behavior:contain}#roomHead{display:none}}
+@media(orientation:landscape) and (max-height:500px) and (min-width:560px){#room.on{flex-direction:row;overflow:hidden}#stage{max-height:none;height:100%;width:62%;aspect-ratio:auto}#panel{width:38%;height:100%;flex:none;overflow-y:auto;overscroll-behavior:contain}#roomHead{display:none}}
 #home{background:radial-gradient(90% 45% at 50% -5%,#3a2a12 0,transparent 70%),radial-gradient(120% 60% at 50% 110%,#17141c,transparent 60%),var(--ink)}
 #home .top{margin-bottom:28px}
 .brand{display:flex;align-items:center;gap:10px;font-family:Georgia,serif;font-size:17px;letter-spacing:.3px}

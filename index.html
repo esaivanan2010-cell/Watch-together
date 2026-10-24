@@ -39,8 +39,21 @@ input,select,textarea{width:100%;background:var(--char);border:1px solid #38353f
 #ov{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;pointer-events:none;color:var(--tx);text-align:center;padding:16px}
 #ov span{background:#000a;padding:8px 14px;border-radius:12px}
 #bar{background:linear-gradient(transparent,#000d);padding:8px 10px;transition:opacity .25s}
-#stage.local #bar{position:absolute;left:0;right:0;bottom:0}
-#stage.local.hide #bar{opacity:0;pointer-events:none}
+#bar{position:absolute;left:0;right:0;bottom:0;z-index:3}
+#tap{position:absolute;inset:0;z-index:2}
+#ov{z-index:2}
+#center{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;gap:22px;z-index:3;pointer-events:none;transition:opacity .25s}
+#center[hidden]{display:none}
+#center button{pointer-events:auto;width:42px;height:42px;border-radius:50%;padding:0;background:#000a;color:#fff;border:1px solid #fff3;display:flex;align-items:center;justify-content:center}
+#center #pp{width:56px;height:56px;background:var(--amber);color:#1a1205;border:0}
+#stage.hide #bar,#stage.hide #center{opacity:0;pointer-events:none}
+#stage.hide #center button{pointer-events:none}
+#bar .row{flex-wrap:wrap}
+#stage #bar{padding:4px 10px 6px}
+#stage #bar button{padding:0 8px;min-width:32px;height:28px;display:inline-flex;align-items:center;justify-content:center;border-radius:10px;background:transparent;color:#eee}
+#stage #bar select{font-size:12px;padding:0 6px;height:28px;border-radius:10px;background:#fff1;border:0}
+#stage #bar .small{font-size:11px;color:#ddd}
+#stage #bar input[type=range]{height:14px;margin:0}
 #bar .row{gap:6px;margin-top:4px}#bar button{padding:8px 10px;flex:none;min-width:40px;background:#fff1}
 #bar input[type=range]{padding:0;border:0;background:none;accent-color:var(--amber)}
 #bar select{width:auto;padding:6px}
@@ -51,28 +64,43 @@ input,select,textarea{width:100%;background:var(--char);border:1px solid #38353f
 .sheet.open{transform:none}
 #toast{position:fixed;left:50%;top:calc(var(--sat) + 10px);transform:translateX(-50%);background:var(--char2);padding:10px 16px;border-radius:14px;z-index:120;display:none;max-width:90%}
 @media(orientation:landscape) and (max-height:500px){#room.on{flex-direction:row}#stage{max-height:none;height:100%;width:62%;aspect-ratio:auto}#panel{width:38%}#roomHead{display:none}}
+#home{background:radial-gradient(90% 45% at 50% -5%,#3a2a12 0,transparent 70%),radial-gradient(120% 60% at 50% 110%,#17141c,transparent 60%),var(--ink)}
+#home .top{margin-bottom:28px}
+.brand{display:flex;align-items:center;gap:10px;font-family:Georgia,serif;font-size:17px;letter-spacing:.3px}
+.lamp-sm{width:14px;height:14px;border-radius:50%;background:radial-gradient(circle,var(--amber),#7a4a10 75%);box-shadow:0 0 14px var(--amber)}
+#gear{padding:9px;border-radius:50%;background:#ffffff0f;display:flex;border:1px solid #ffffff14;color:#ddd}
+.hero{margin-bottom:26px}
+.hero h1{font-size:40px;line-height:1.08;letter-spacing:-.5px;margin-bottom:12px}
+.hero p{color:var(--dim);margin:0 0 14px;max-width:30ch}
+.hero .stat{display:inline-flex;align-items:center;font-size:13px;background:#ffffff0d;border:1px solid #ffffff14;border-radius:20px;padding:5px 12px;color:#ccc;max-width:none}
+#home .card{background:#141318;border:1px solid #ffffff12;border-radius:20px;padding:18px}
+#home .card h2{font-size:17px;margin-bottom:12px}
+#home .card.main{background:linear-gradient(160deg,#241a0c,#141318 60%);border-color:#f0a83c33}
+button.big{width:100%;padding:15px;font-size:17px;border-radius:16px;margin-bottom:10px;box-shadow:0 8px 24px #f0a83c26}
+.joinrow{display:flex;gap:10px}.joinrow input{flex:1;letter-spacing:1px}.joinrow button{flex:none;padding:12px 22px;background:#ffffff14}
 </style></head><body>
 <div id="splash"><div class="lamp"></div><h1>Watch Together</h1></div>
 <div id="toast" role="status"></div>
 
 <main id="home" class="screen on">
- <div class="top"><h1>Watch Together</h1><button id="gear" aria-label="Settings">Settings</button></div>
- <p class="small"><span class="dot" id="cdot"></span><span id="cstat">Not connected</span></p>
- <div class="card"><h2>Start a room</h2><p class="small">You become the host and pick the video.</p><button class="pri" id="create" style="width:100%">Create room</button></div>
- <div class="card"><h2>Join a room</h2><input id="joinIn" placeholder="Room code or invite link" autocapitalize="characters" autocomplete="off"><div class="err" id="joinErr"></div><button id="join" style="width:100%">Join room</button></div>
+ <div class="top"><span class="brand"><i class="lamp-sm"></i>Watch Together</span><button id="gear" aria-label="Settings"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/></svg></button></div>
+ <section class="hero"><h1>Movie night,<br>in sync.</h1><p>Watch YouTube or your own videos together, on separate phones.</p>
+  <p class="stat"><span class="dot" id="cdot"></span><span id="cstat">Not connected</span></p></section>
+ <div class="card main"><button class="pri big" id="create">Create a room</button><p class="small" style="margin:0">You host and pick the video. Share the room code with a friend.</p></div>
+ <div class="card"><h2>Join a room</h2><div class="joinrow"><input id="joinIn" placeholder="Room code or invite link" autocapitalize="characters" autocomplete="off"><button id="join">Join</button></div><div class="err" id="joinErr"></div></div>
  <div class="card"><h2>Recent rooms</h2><div id="recent" class="small">Rooms you open will show up here.</div></div>
 </main>
 
 <section id="room">
  <div id="roomHead"><div><strong id="rcode"></strong><div class="small" id="rmode"></div></div>
   <div class="row" style="flex:none"><button id="copy">Copy invite</button><button id="leave">Leave</button></div></div>
- <div id="stage" class="local"><div id="media"><div id="ytBox"></div><video id="vid" playsinline hidden></video><div id="ov"><span id="ovt">No video yet</span></div></div>
+ <div id="stage" class="hide"><div id="media"><div id="ytBox"></div><video id="vid" playsinline hidden></video><div id="tap"></div><div id="center" hidden><button id="back" aria-label="Back 10 seconds"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 3-6.2"/><path d="M4 4v4h4"/><text x="12" y="15.5" text-anchor="middle" font-size="8" fill="currentColor" stroke="none" font-family="system-ui">10</text></svg></button><button id="pp" aria-label="Play or pause"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button><button id="fwd" aria-label="Forward 10 seconds"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v4h-4"/><text x="12" y="15.5" text-anchor="middle" font-size="8" fill="currentColor" stroke="none" font-family="system-ui">10</text></svg></button></div><div id="ov"><span id="ovt">No video yet</span></div></div>
   <div id="bar" hidden>
    <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Seek">
    <div class="row"><span class="small" id="tm">0:00 / 0:00</span><span style="flex:1"></span>
-    <button id="back">-10</button><button id="pp" class="pri">Play</button><button id="fwd">+10</button>
-    <select id="spd" aria-label="Speed"></select><button id="mute">Mute</button>
-    <input id="vol" type="range" min="0" max="100" value="100" style="width:70px;flex:none" aria-label="Volume"><button id="fs">Full</button></div>
+    
+    <select id="spd" aria-label="Speed"></select><button id="mute" aria-label="Mute"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg></button>
+    <input id="vol" type="range" min="0" max="100" value="100" style="width:56px;flex:none" aria-label="Volume"><button id="fs" aria-label="Fullscreen"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button></div>
   </div></div>
  <div id="panel">
   <div class="row" style="flex:none;margin-bottom:6px"><button id="srcBtn">Choose video</button><button id="modeBtn">Control mode</button><button id="endBtn">End room</button></div>
@@ -208,25 +236,25 @@ $('locGo').onclick=()=>setSource({type:'local',session:Date.now()});
 
 /* ---------- players ---------- */
 const vid=$('vid');let objUrl=null,ytReady=null;
-function destroyPlayer(){if(S.player&&S.player.destroy)S.player.destroy();S.player=null;S.src=null;vid.pause();vid.removeAttribute('src');vid.load();vid.hidden=true;if(objUrl){URL.revokeObjectURL(objUrl);objUrl=null}$('ytBox').textContent='';$('bar').hidden=true}
+function destroyPlayer(){if(S.player&&S.player.destroy)S.player.destroy();S.player=null;S.src=null;vid.pause();vid.removeAttribute('src');vid.load();vid.hidden=true;if(objUrl){URL.revokeObjectURL(objUrl);objUrl=null}$('ytBox').textContent='';$('ov').style.pointerEvents='none';$('ov').onclick=null;ctlShow(false)}
 function overlay(t){$('ovt').textContent=t||'';$('ov').style.display=t?'flex':'none'}
 function loadSource(s){const key=s?JSON.stringify(s):'';if(key===S.src)return;destroyPlayer();S.src=key;
  if(!s)return overlay(S.meta.hostId===S.uid?'Tap "Choose video" to begin':'Waiting for the host to choose a video');
- $('stage').classList.toggle('local',s.type==='local');
+ 
  if(s.type==='youtube')initYT(s.id);else initLocal()}
 function initLocal(){overlay('Select your copy of the video');vid.hidden=false;
  const pick=()=>{if(S.player)return;$('file').click()};$('ov').style.pointerEvents='auto';$('ov').onclick=pick;
  $('file').onchange=()=>{const f=$('file').files[0];if(!f)return;if(!vid.canPlayType(f.type||'video/mp4')&&!f.type.startsWith('video/'))return toast('That file is not a supported video.');
   if(objUrl)URL.revokeObjectURL(objUrl);objUrl=URL.createObjectURL(f);vid.src=objUrl;
   vid.onerror=()=>{overlay('This device cannot play that format. Pick an MP4 or WebM.');S.player=null};
-  vid.onloadedmetadata=async()=>{S.player=localAdapter();overlay(f.name);setTimeout(()=>overlay(''),2500);$('ov').style.pointerEvents='none';$('bar').hidden=false;
+  vid.onloadedmetadata=async()=>{S.player=localAdapter();overlay(f.name);setTimeout(()=>overlay(''),2500);$('ov').style.pointerEvents='none';ctlShow(true);
    try{await S.fb.update(R(`rooms/${S.code}/members/${S.uid}`),{fp:f.size+':'+Math.round(vid.duration)})}catch{}
    $('seek').disabled=false;apply();ctlLoop()};
   vid.onwaiting=()=>overlay('Buffering...');vid.onplaying=()=>overlay('')};
  $('file').value=''}
 const localAdapter=()=>({ready:true,time:()=>vid.currentTime,dur:()=>vid.duration||0,seek:t=>{vid.currentTime=t},rate:r=>{vid.playbackRate=r},
  play:()=>vid.play().catch(()=>overlay('Tap the screen to start playback')),pause:()=>vid.pause(),playing:()=>!vid.paused,vol:v=>{vid.volume=v},mute:m=>{vid.muted=m}});
-function initYT(id){overlay('Loading YouTube...');$('bar').hidden=false;
+function initYT(id){overlay('Loading YouTube...');ctlShow(true);
  const make=()=>{const box=document.createElement('div');$('ytBox').appendChild(box);
   const p=new YT.Player(box,{videoId:id,width:'100%',height:'100%',playerVars:{controls:0,playsinline:1,rel:0,disablekb:1,fs:0},events:{
    onReady:()=>{S.player={ready:true,destroy:()=>p.destroy(),time:()=>p.getCurrentTime(),dur:()=>p.getDuration(),seek:t=>p.seekTo(t,true),rate:r=>p.setPlaybackRate(r),
@@ -239,9 +267,11 @@ function initYT(id){overlay('Loading YouTube...');$('bar').hidden=false;
 
 /* ---------- sync + controls ---------- */
 const guard={n:0};
+const IC={play:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',pause:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>',
+ vol:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>',muted:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9l5 6M21 9l-5 6"/></svg>'};
 function apply(){const p=S.pb,pl=S.player;if(!p||!pl||!pl.ready)return;const d=pl.dur()||Infinity,e=expected(p,now(),d);
  guard.n++;try{if(pl.rate)pl.rate(p.speed);if(Math.abs(pl.time()-e)>TOL)pl.seek(e);p.playing?pl.play():pl.pause()}finally{setTimeout(()=>guard.n--,300)}
- $('pp').textContent=p.playing?'Pause':'Play';$('spd').value=p.speed}
+ $('pp').innerHTML=p.playing?IC.pause:IC.play;$('spd').value=p.speed}
 async function act(a){if(!canCtl()){toast(S.meta&&S.meta.controlMode==='host'?'Only the host controls playback.':'You cannot control playback.');apply();return}
  try{await S.fb.runTransaction(R(`rooms/${S.code}/playback`),cur=>nextState(cur,a,now())||undefined)}catch{toast('Sync failed. Check your connection.')}}
 $('pp').onclick=()=>act({type:S.pb&&S.pb.playing?'pause':'play'});
@@ -251,7 +281,7 @@ SPEEDS.forEach(s=>{const o=document.createElement('option');o.value=s;o.textCont
 $('spd').onchange=()=>act({type:'speed',value:+$('spd').value});
 let drag=false;$('seek').oninput=()=>{drag=true;if(S.player)$('tm').textContent=fmt($('seek').value/1000*S.player.dur())+' / '+fmt(S.player.dur())};
 $('seek').onchange=()=>{drag=false;if(S.player)act({type:'seek',to:$('seek').value/1000*S.player.dur()})};
-let muted=false;$('mute').onclick=()=>{muted=!muted;S.player&&S.player.mute(muted);$('mute').textContent=muted?'Unmute':'Mute'};
+let muted=false;$('mute').onclick=()=>{muted=!muted;S.player&&S.player.mute(muted);$('mute').innerHTML=muted?IC.muted:IC.vol;$('mute').setAttribute('aria-label',muted?'Unmute':'Mute')};
 $('vol').oninput=()=>S.player&&S.player.vol($('vol').value/100);
 $('fs').onclick=async()=>{try{document.fullscreenElement?await document.exitFullscreen():await $('stage').requestFullscreen()}catch{toast('Fullscreen is not available here.')}};
 let ctl=null;function ctlLoop(){clearInterval(ctl);let n=0;ctl=setInterval(()=>{const pl=S.player;if(!pl||!S.code)return clearInterval(ctl);
@@ -259,9 +289,12 @@ let ctl=null;function ctlLoop(){clearInterval(ctl);let n=0;ctl=setInterval(()=>{
  if(++n%8===0)apply()},500)}
 // tap to show controls (local video), double-tap to seek
 let hideT=null,lastTap=0;const stage=$('stage');
-function wake(){stage.classList.remove('hide');clearTimeout(hideT);hideT=setTimeout(()=>{if(S.player&&S.player.playing())stage.classList.add('hide')},3000)}
-$('media').addEventListener('click',e=>{if(!stage.classList.contains('local'))return;const t=Date.now(),r=$('media').getBoundingClientRect();
- if(t-lastTap<300&&S.player){jump(e.clientX<r.left+r.width/2?-10:10)}else{wake();apply()}lastTap=t});
+function wake(){stage.classList.remove('hide');clearTimeout(hideT);hideT=setTimeout(()=>{if(!drag)stage.classList.add('hide')},3500)}
+$('tap').addEventListener('click',e=>{const t=Date.now(),r=$('media').getBoundingClientRect();
+ if(t-lastTap<300&&S.player){jump(e.clientX<r.left+r.width/2?-10:10)}
+ lastTap=t;wake();apply()});
+['bar','center'].forEach(i=>$(i).addEventListener('click',wake));
+function ctlShow(on){$('bar').hidden=!on;$('center').hidden=!on}
 addEventListener('beforeunload',()=>{if(objUrl)URL.revokeObjectURL(objUrl)});
 
 /* ---------- boot ---------- */

@@ -1,7 +1,7 @@
 <!doctype html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,interactive-widget=resizes-content">
-<meta name="theme-color" content="#0d0c0f"><title>Watch Together</title>
+<meta name="theme-color" content="#0d0c0f"><link rel="manifest" href="manifest.json"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png"><title>Watch Together</title>
 <style>
 :root{--ink:#0d0c0f;--char:#1b1a1f;--char2:#26242b;--amber:#f0a83c;--tx:#f4f1ec;--dim:#9b96a0;--bad:#ff6b5e;--ok:#6fd49a;
 --sat:env(safe-area-inset-top,0px);--sab:env(safe-area-inset-bottom,0px)}
@@ -474,4 +474,5 @@ const q=new URLSearchParams(location.search).get('room');if(q)$('joinIn').value=
 setTimeout(()=>{$('splash').style.opacity=0;setTimeout(()=>$('splash').remove(),500)},900);
 addEventListener('online',()=>status(S.db?'Connected':'Not connected',S.db?1:0));
 addEventListener('offline',()=>status('No internet',2));
-</script></body></html>
+</script>
+<script>if("serviceWorker"in navigator&&location.protocol!=="file:")addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}))</script></body></html>

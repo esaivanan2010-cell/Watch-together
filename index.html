@@ -285,7 +285,7 @@ $('endBtn').onclick=async()=>{if(!confirm('End this room for everyone?'))return;
 $('modeBtn').onclick=async()=>{if(S.meta.hostId!==S.uid)return toast('Only the host can change control mode.');
  try{await S.fb.update(R(`rooms/${S.code}/meta`),{controlMode:S.meta.controlMode==='host'?'shared':'host'})}catch(e){toast('Could not change mode.')}};
 function drawMode(){const h=S.meta.hostId===S.uid;$('rmode').textContent=(S.meta.controlMode==='host'?'Host control':'Shared control')+(h?' (you are host)':'');
- $('modeBtn').disabled=!h;$('srcBtn').disabled=!h;$('endBtn').disabled=!h;$('modeBtn').textContent=S.meta.controlMode==='host'?'Switch to shared':'Switch to host only'}
+ $('modeBtn').disabled=!h;$('srcBtn').disabled=!h&&!(S.meta.source&&S.meta.source.type==='local');$('endBtn').disabled=!h;$('modeBtn').textContent=S.meta.controlMode==='host'?'Switch to shared':'Switch to host only'}
 function drawMembers(){const e=$('members');e.textContent='';if(!S.meta)return;const hostFp=(S.members[S.meta.hostId]||{}).fp;
  Object.entries(S.members).forEach(([id,m])=>{const c=document.createElement('span');c.className='chip';
   let t=(m.online?'● ':'○ ')+m.name+(id===S.meta.hostId?' (host)':'')+(id===S.uid?' (you)':'');
@@ -311,7 +311,7 @@ function drawChat(o){const e=$('msgs');e.textContent='';const k=Object.keys(o).s
   c.append(b,ti,bub);row.append(av,c);e.appendChild(row)});e.scrollTop=e.scrollHeight}
 
 /* ---------- source selection ---------- */
-$('srcBtn').onclick=()=>{$('srcErr').textContent='';sheet('sSrc',true)};
+$('srcBtn').onclick=()=>{if(S.meta.hostId!==S.uid&&S.meta.source&&S.meta.source.type==='local')return $('file').click();$('srcErr').textContent='';sheet('sSrc',true)};
 const setSource=async s=>{try{await S.fb.update(R(`rooms/${S.code}/meta`),{source:s});await act({type:'pause'});await act({type:'seek',to:0});sheet('sSrc',false)}catch{toast('Could not change the video.')}};
 $('ytGo').onclick=()=>{const id=parseYT($('ytIn').value);if(!id){$('srcErr').textContent='Enter a valid YouTube watch or youtu.be link.';return}setSource({type:'youtube',id})};
 $('locGo').onclick=()=>setSource({type:'local',session:Date.now()});
@@ -328,7 +328,7 @@ function initLocal(){overlay('Select your copy of the video');vid.hidden=false;
  const pick=()=>{if(S.player)return;$('file').click()};$('ov').style.pointerEvents='auto';$('ov').onclick=pick;
  $('file').onchange=()=>{const f=$('file').files[0];if(!f)return;if(!vid.canPlayType(f.type||'video/mp4')&&!f.type.startsWith('video/'))return toast('That file is not a supported video.');
   if(objUrl)URL.revokeObjectURL(objUrl);objUrl=URL.createObjectURL(f);vid.src=objUrl;
-  vid.onerror=()=>{overlay('This device cannot play that format. Pick an MP4 or WebM.');S.player=null};
+  vid.onerror=()=>{overlay('This phone cannot play "'+f.name+'". Use an MP4 file (H.264 video, AAC audio).');S.player=null};
   vid.onloadedmetadata=async()=>{S.player=localAdapter();overlay(f.name);setTimeout(()=>overlay(''),2500);$('ov').style.pointerEvents='none';ctlShow(true);
    try{await S.fb.update(R(`rooms/${S.code}/members/${S.uid}`),{fp:f.size+':'+Math.round(vid.duration)})}catch{}
    $('seek').disabled=false;apply();ctlLoop()};

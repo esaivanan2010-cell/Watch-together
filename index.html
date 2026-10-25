@@ -303,7 +303,7 @@ function enter(code){S.code=code;S.meta=null;S.members={};S.pb=null;S.rev=0;S.sr
  $('rcode').textContent='Room '+code;show('room');history.pushState({r:1},'');
  const mine=R(`rooms/${code}/members/${S.uid}/online`);S.fb.onDisconnect(mine).set(false);S.fb.set(mine,true);
  const sub=(p,f)=>S.un.push(S.fb.onValue(R(`rooms/${code}/${p}`),f,e=>{toast('Lost access to the room.');leave(true)}));
- sub('meta',s=>{const m=s.val();if(!m){return}if(m.ended){toast('The host ended this room.');leave(true);return}S.meta=m;drawMode();loadSource(m.source);drawMembers()});
+ sub('meta',s=>{const m=s.val();if(!m){return}if(m.ended){toast('The host ended this room.');leave(true);return}S.meta=m;drawMode();syncControlUI();loadSource(m.source);drawMembers()});
  sub('members',s=>{S.members=s.val()||{};drawMembers()});
  sub('playback',s=>{const p=s.val();if(p&&p.rev>S.rev){S.rev=p.rev;S.pb=p;apply()}});
  S.un.push(S.fb.onValue(S.fb.query(R(`rooms/${code}/chat`),S.fb.limitToLast(100)),s=>drawChat(s.val()||{})));
@@ -351,7 +351,7 @@ $('locGo').onclick=()=>setSource({type:'local',session:Date.now()});
 
 /* ---------- players ---------- */
 const vid=$('vid');let objUrl=null,ytReady=null;
-function destroyPlayer(){teardownRtc();vid.srcObject=null;$('seek').disabled=$('back').disabled=$('fwd').disabled=false;if(S.player&&S.player.destroy)S.player.destroy();S.player=null;S.src=null;vid.pause();vid.removeAttribute('src');vid.load();vid.hidden=true;if(objUrl){URL.revokeObjectURL(objUrl);objUrl=null}$('ytBox').textContent='';$('ov').style.pointerEvents='none';$('ov').onclick=null;ctlShow(false)}
+function destroyPlayer(){teardownRtc();vid.srcObject=null;if(S.player&&S.player.destroy)S.player.destroy();S.player=null;S.src=null;vid.pause();vid.removeAttribute('src');vid.load();vid.hidden=true;if(objUrl){URL.revokeObjectURL(objUrl);objUrl=null}$('ytBox').textContent='';$('ov').style.pointerEvents='none';$('ov').onclick=null;ctlShow(false)}
 function overlay(t){$('ovt').textContent=t||'';$('ov').style.display=t?'flex':'none'}
 function loadSource(s){const key=s?JSON.stringify(s):'';if(key===S.src)return;destroyPlayer();S.src=key;
  if(!s)return overlay(S.meta.hostId===S.uid?'Tap "Choose video" to begin':'Waiting for the host to choose a video');
@@ -362,7 +362,7 @@ function initLocal(){overlay('Tap to choose your video');vid.hidden=false;
  $('file').onchange=()=>{const f=$('file').files[0];if(!f)return;if(!vid.canPlayType(f.type||'video/mp4')&&!f.type.startsWith('video/'))return toast('That file is not a supported video.');
   if(objUrl)URL.revokeObjectURL(objUrl);objUrl=URL.createObjectURL(f);vid.src=objUrl;
   vid.onerror=()=>{overlay('This phone cannot play "'+f.name+'". Use an MP4 file (H.264 video, AAC audio).');S.player=null};
-  vid.onloadedmetadata=async()=>{S.player=localAdapter();overlay(f.name);setTimeout(()=>overlay(''),2500);startHostStream();$('ov').style.pointerEvents='none';ctlShow(true);
+  vid.onloadedmetadata=async()=>{S.player=localAdapter();overlay(f.name);setTimeout(()=>overlay(''),2500);startHostStream();if(Number.isFinite(vid.duration))S.fb.update(R(`rooms/${S.code}/meta`),{duration:vid.duration}).catch(()=>{});$('ov').style.pointerEvents='none';ctlShow(true);
    try{await S.fb.update(R(`rooms/${S.code}/members/${S.uid}`),{fp:f.size+':'+Math.round(vid.duration)})}catch{}
    $('seek').disabled=false;apply();ctlLoop()};
   vid.onwaiting=()=>overlay('Buffering...');vid.onplaying=()=>overlay('')};
@@ -422,11 +422,11 @@ async function connectGuest(u){
 }
 function initGuestStream(){
  overlay('Waiting for the host to start the video...');vid.hidden=false;
- S.player={ready:true,stream:true,time:()=>0,dur:()=>0,seek:()=>{},rate:()=>{},pause:()=>{},
-  play:()=>vid.play().catch(()=>overlay('Tap the video to start')),playing:()=>!vid.paused,
+ S.player={ready:true,stream:true,time:()=>expected(S.pb,now(),Infinity),dur:()=>(S.meta&&S.meta.duration)||0,seek:()=>{},rate:()=>{},
+  pause:()=>{},play:()=>{if(vid.paused)vid.play().catch(()=>overlay('Tap the video to start'))},playing:()=>!!S.pb&&!!S.pb.playing,
   vol:v=>{vid.volume=v},mute:m=>{vid.muted=m}};
- $('tm').textContent='Live from host';$('seek').disabled=$('back').disabled=$('fwd').disabled=true;
- ctlShow(true);stopGuest();ctlLoop();
+ syncControlUI();
+ ctlShow(true);stopGuest();ctlLoop();rtc.retry=setTimeout(guestRetry,12000);
  rtc.guestWatch=S.fb.onValue(rtcRef(S.uid),s=>guestRtc(s.val()));
  S.fb.set(rtcRef(S.uid,'req'),true).catch(()=>toast('Could not reach the host. Check your connection.'));
 }
@@ -444,12 +444,14 @@ async function answerHost(v){
  catch{stopGuestPc();S.fb.remove(rtcRef(S.uid)).catch(()=>{})}
 }
 function stopGuestPc(){const p=rtc.guest;rtc.guest=null;if(p){p.unsubs.forEach(f=>f());try{p.pc.close()}catch{}}vid.srcObject=null}
-function stopGuest(){stopGuestPc();if(rtc.guestWatch){rtc.guestWatch();rtc.guestWatch=null}}
+function stopGuest(){stopGuestPc();clearTimeout(rtc.retry);if(rtc.guestWatch){rtc.guestWatch();rtc.guestWatch=null}}
 function teardownRtc(){
  if(!S.code||!S.db){stopGuest();stopHostStream();return}
  if(isHost()){rtc.seen.forEach(u=>S.fb.remove(rtcRef(u)).catch(()=>{}));rtc.seen=[];stopHostStream()}
  else{stopGuest();S.fb.remove(rtcRef(S.uid)).catch(()=>{})}
 }
+function syncControlUI(){const ok=!!S.meta&&canCtl();['pp','back','fwd','spd','seek'].forEach(i=>$(i).disabled=!ok)}
+function guestRetry(){if(vid.srcObject||!(S.player&&S.player.stream&&rtc.guestWatch))return;stopGuestPc();S.fb.remove(rtcRef(S.uid)).then(()=>S.fb.set(rtcRef(S.uid,'req'),true)).catch(()=>{});rtc.retry=setTimeout(guestRetry,12000)}
 /* ---------- sync + controls ---------- */
 const guard={n:0};
 const IC={play:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',pause:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>',

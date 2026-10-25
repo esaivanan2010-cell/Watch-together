@@ -323,7 +323,6 @@ function drawMode(){const h=S.meta.hostId===S.uid;$('rmode').textContent=(S.meta
 function drawMembers(){const e=$('members');e.textContent='';if(!S.meta)return;const hostFp=(S.members[S.meta.hostId]||{}).fp;
  Object.entries(S.members).forEach(([id,m])=>{const c=document.createElement('span');c.className='chip';
   let t=(m.online?'● ':'○ ')+m.name+(id===S.meta.hostId?' (host)':'')+(id===S.uid?' (you)':'');
-  if(S.meta.source&&S.meta.source.type==='local'&&id!==S.meta.hostId)t+=!m.fp?' · no file':hostFp&&m.fp===hostFp?' · file matches':' · file differs';
   c.textContent=t;e.appendChild(c)});
  const h=S.members[S.meta.hostId];$('hostWarn').textContent=h&&!h.online&&S.meta.hostId!==S.uid?'Host is offline. '+(S.meta.controlMode==='host'?'Playback cannot be changed until they return.':''):''}
 
@@ -352,18 +351,18 @@ $('locGo').onclick=()=>setSource({type:'local',session:Date.now()});
 
 /* ---------- players ---------- */
 const vid=$('vid');let objUrl=null,ytReady=null;
-function destroyPlayer(){if(S.player&&S.player.destroy)S.player.destroy();S.player=null;S.src=null;vid.pause();vid.removeAttribute('src');vid.load();vid.hidden=true;if(objUrl){URL.revokeObjectURL(objUrl);objUrl=null}$('ytBox').textContent='';$('ov').style.pointerEvents='none';$('ov').onclick=null;ctlShow(false)}
+function destroyPlayer(){teardownRtc();vid.srcObject=null;$('seek').disabled=$('back').disabled=$('fwd').disabled=false;if(S.player&&S.player.destroy)S.player.destroy();S.player=null;S.src=null;vid.pause();vid.removeAttribute('src');vid.load();vid.hidden=true;if(objUrl){URL.revokeObjectURL(objUrl);objUrl=null}$('ytBox').textContent='';$('ov').style.pointerEvents='none';$('ov').onclick=null;ctlShow(false)}
 function overlay(t){$('ovt').textContent=t||'';$('ov').style.display=t?'flex':'none'}
 function loadSource(s){const key=s?JSON.stringify(s):'';if(key===S.src)return;destroyPlayer();S.src=key;
  if(!s)return overlay(S.meta.hostId===S.uid?'Tap "Choose video" to begin':'Waiting for the host to choose a video');
  
- if(s.type==='youtube'){if(/^[\w-]{11}$/.test(s.id||''))initYT(s.id);else overlay('The host sent an invalid YouTube link.')}else initLocal()}
-function initLocal(){overlay('Select your copy of the video');vid.hidden=false;
+ if(s.type==='youtube'){if(/^[\w-]{11}$/.test(s.id||''))initYT(s.id);else overlay('The host sent an invalid YouTube link.')}else if(isHost())initLocal();else initGuestStream()}
+function initLocal(){overlay('Tap to choose your video');vid.hidden=false;
  const pick=()=>{if(S.player)return;$('file').click()};$('ov').style.pointerEvents='auto';$('ov').onclick=pick;
  $('file').onchange=()=>{const f=$('file').files[0];if(!f)return;if(!vid.canPlayType(f.type||'video/mp4')&&!f.type.startsWith('video/'))return toast('That file is not a supported video.');
   if(objUrl)URL.revokeObjectURL(objUrl);objUrl=URL.createObjectURL(f);vid.src=objUrl;
   vid.onerror=()=>{overlay('This phone cannot play "'+f.name+'". Use an MP4 file (H.264 video, AAC audio).');S.player=null};
-  vid.onloadedmetadata=async()=>{S.player=localAdapter();overlay(f.name);setTimeout(()=>overlay(''),2500);$('ov').style.pointerEvents='none';ctlShow(true);
+  vid.onloadedmetadata=async()=>{S.player=localAdapter();overlay(f.name);setTimeout(()=>overlay(''),2500);startHostStream();$('ov').style.pointerEvents='none';ctlShow(true);
    try{await S.fb.update(R(`rooms/${S.code}/members/${S.uid}`),{fp:f.size+':'+Math.round(vid.duration)})}catch{}
    $('seek').disabled=false;apply();ctlLoop()};
   vid.onwaiting=()=>overlay('Buffering...');vid.onplaying=()=>overlay('')};
@@ -381,6 +380,76 @@ function initYT(id){overlay('Loading YouTube...');ctlShow(true);const mine=S.src
  if(window.YT&&YT.Player)return make();
  window.onYouTubeIframeAPIReady=make;if(!ytReady){ytReady=1;const s=document.createElement('script');s.src='https://www.youtube.com/iframe_api';s.onerror=()=>{ytReady=null;s.remove();overlay('Could not load YouTube. Check your connection.')};document.head.appendChild(s)}}
 
+/* ---------- host streams its file to guests (WebRTC, device to device) ---------- */
+const RTC_CFG={iceServers:[{urls:'stun:stun.l.google.com:19302'}]};
+const rtc={out:null,timer:null,canvas:null,host:{},seen:[],hostWatch:null,guest:null,guestWatch:null};
+const isHost=()=>!!S.meta&&S.meta.hostId===S.uid;
+const rtcRef=(u,k)=>R(`rooms/${S.code}/rtc/${u}${k?'/'+k:''}`);
+const addIce=(p,c)=>{if(!c)return;if(p.pc.remoteDescription)p.pc.addIceCandidate(c).catch(()=>{});else p.pending.push(c)};
+const flushIce=p=>p.pending.splice(0).forEach(c=>p.pc.addIceCandidate(c).catch(()=>{}));
+function startHostStream(){
+ stopHostStream();
+ const w=vid.videoWidth||640,h=vid.videoHeight||360,k=Math.min(1,1280/Math.max(w,h));
+ const c=document.createElement('canvas');c.width=Math.round(w*k);c.height=Math.round(h*k);
+ c.style.cssText='position:fixed;left:-9999px;top:0;width:1px;height:1px';document.body.appendChild(c);
+ const ctx=c.getContext('2d');
+ rtc.timer=setInterval(()=>{if(vid.readyState>=2)ctx.drawImage(vid,0,0,c.width,c.height)},1000/30);
+ rtc.canvas=c;rtc.out=c.captureStream(30);
+ const cap=vid.captureStream?vid.captureStream():null;
+ if(cap)cap.getAudioTracks().forEach(t=>rtc.out.addTrack(t));
+ rtc.hostWatch=S.fb.onValue(R(`rooms/${S.code}/rtc`),s=>hostRtc(s.val()||{}));
+}
+function stopHostStream(){
+ clearInterval(rtc.timer);rtc.timer=null;
+ if(rtc.canvas){rtc.canvas.remove();rtc.canvas=null}
+ if(rtc.hostWatch){rtc.hostWatch();rtc.hostWatch=null}
+ Object.keys(rtc.host).forEach(closePeer);rtc.out=null;
+}
+function hostRtc(all){
+ rtc.seen=Object.keys(all);if(!rtc.out)return;
+ Object.keys(rtc.host).forEach(u=>{if(!all[u])closePeer(u)});
+ Object.keys(all).forEach(u=>{if(u!==S.uid&&!rtc.host[u]&&all[u]&&all[u].req)connectGuest(u)});
+}
+function closePeer(u){const p=rtc.host[u];if(!p)return;p.unsubs.forEach(f=>f());try{p.pc.close()}catch{}delete rtc.host[u]}
+async function connectGuest(u){
+ const pc=new RTCPeerConnection(RTC_CFG),p={pc,unsubs:[],pending:[]};rtc.host[u]=p;
+ rtc.out.getTracks().forEach(t=>pc.addTrack(t,rtc.out));
+ pc.onicecandidate=e=>{if(e.candidate)S.fb.push(rtcRef(u,'hostIce'),e.candidate.toJSON())};
+ pc.onconnectionstatechange=()=>{if(pc.connectionState==='failed'){closePeer(u);S.fb.remove(rtcRef(u)).catch(()=>{})}};
+ p.unsubs.push(S.fb.onChildAdded(rtcRef(u,'guestIce'),s=>addIce(p,s.val())));
+ p.unsubs.push(S.fb.onValue(rtcRef(u,'answer'),async s=>{const a=s.val();if(!a||pc.signalingState!=='have-local-offer')return;try{await pc.setRemoteDescription(a);flushIce(p)}catch{}}));
+ try{const o=await pc.createOffer();await pc.setLocalDescription(o);await S.fb.set(rtcRef(u,'offer'),{type:o.type,sdp:o.sdp})}catch{closePeer(u)}
+}
+function initGuestStream(){
+ overlay('Waiting for the host to start the video...');vid.hidden=false;
+ S.player={ready:true,stream:true,time:()=>0,dur:()=>0,seek:()=>{},rate:()=>{},pause:()=>{},
+  play:()=>vid.play().catch(()=>overlay('Tap the video to start')),playing:()=>!vid.paused,
+  vol:v=>{vid.volume=v},mute:m=>{vid.muted=m}};
+ $('tm').textContent='Live from host';$('seek').disabled=$('back').disabled=$('fwd').disabled=true;
+ ctlShow(true);stopGuest();ctlLoop();
+ rtc.guestWatch=S.fb.onValue(rtcRef(S.uid),s=>guestRtc(s.val()));
+ S.fb.set(rtcRef(S.uid,'req'),true).catch(()=>toast('Could not reach the host. Check your connection.'));
+}
+function guestRtc(v){
+ if(!v){stopGuestPc();if(S.player&&S.player.stream)setTimeout(()=>{if(S.player&&S.player.stream&&rtc.guestWatch)S.fb.set(rtcRef(S.uid,'req'),true).catch(()=>{})},2000);return}
+ if(v.offer&&!rtc.guest)answerHost(v);
+}
+async function answerHost(v){
+ const pc=new RTCPeerConnection(RTC_CFG),p={pc,unsubs:[],pending:[]};rtc.guest=p;
+ pc.ontrack=e=>{const st=e.streams[0]||new MediaStream([e.track]);if(vid.srcObject!==st){vid.srcObject=st;overlay('');vid.play().catch(()=>overlay('Tap the video to start'))}};
+ pc.onicecandidate=e=>{if(e.candidate)S.fb.push(rtcRef(S.uid,'guestIce'),e.candidate.toJSON())};
+ pc.onconnectionstatechange=()=>{if(pc.connectionState==='failed')S.fb.remove(rtcRef(S.uid)).catch(()=>{})};
+ p.unsubs.push(S.fb.onChildAdded(rtcRef(S.uid,'hostIce'),s=>addIce(p,s.val())));
+ try{await pc.setRemoteDescription(v.offer);flushIce(p);const a=await pc.createAnswer();await pc.setLocalDescription(a);await S.fb.set(rtcRef(S.uid,'answer'),{type:a.type,sdp:a.sdp})}
+ catch{stopGuestPc();S.fb.remove(rtcRef(S.uid)).catch(()=>{})}
+}
+function stopGuestPc(){const p=rtc.guest;rtc.guest=null;if(p){p.unsubs.forEach(f=>f());try{p.pc.close()}catch{}}vid.srcObject=null}
+function stopGuest(){stopGuestPc();if(rtc.guestWatch){rtc.guestWatch();rtc.guestWatch=null}}
+function teardownRtc(){
+ if(!S.code||!S.db){stopGuest();stopHostStream();return}
+ if(isHost()){rtc.seen.forEach(u=>S.fb.remove(rtcRef(u)).catch(()=>{}));rtc.seen=[];stopHostStream()}
+ else{stopGuest();S.fb.remove(rtcRef(S.uid)).catch(()=>{})}
+}
 /* ---------- sync + controls ---------- */
 const guard={n:0};
 const IC={play:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',pause:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>',

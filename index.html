@@ -88,6 +88,50 @@ input,select,textarea{width:100%;background:var(--char);border:1px solid #38353f
 #home .card.main{background:linear-gradient(160deg,#241a0c,#141318 60%);border-color:#f0a83c33}
 button.big{width:100%;padding:15px;font-size:17px;border-radius:16px;margin-bottom:10px;box-shadow:0 8px 24px #f0a83c26}
 .joinrow{display:flex;gap:10px}.joinrow input{flex:1;letter-spacing:1px}.joinrow button{flex:none;padding:12px 22px;background:#ffffff14}
+
+/* ---- room page: reference design ---- */
+#room{background:#000}
+#roomHead{background:#000;border-bottom:1px solid #1e1e1e;padding-top:calc(var(--sat) + 10px);padding-bottom:12px}
+.rhl{display:flex;align-items:center;gap:14px;min-width:0}
+.rdot{width:10px;height:10px;border-radius:50%;background:#fff;flex:none}
+#roomHead strong{display:block;font-family:Georgia,serif;font-size:17px;font-weight:700;letter-spacing:.2px;color:#fff}
+#rmode{font-family:Georgia,serif;font-size:13px;color:#bdbdbd}
+#leave{flex:none;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:15px;color:#fff;background:#5e0a0a;border-radius:0;padding:12px 16px 12px 28px;clip-path:polygon(14% 0,100% 0,100% 100%,14% 100%,0 50%)}
+#stage{background:#000}
+#center{gap:36px}
+#center button{background:transparent;border:0;width:64px;height:64px;color:#fff}
+#center button svg{width:40px;height:40px}
+#center #pp{width:80px;height:80px;background:transparent;color:#fff}
+#center #pp svg{width:64px;height:64px}
+#bar{background:linear-gradient(transparent,#000f)}
+#bar #tm{font-family:ui-monospace,Menlo,Consolas,monospace;font-size:14px;color:#fff;white-space:nowrap}
+#bar input[type=range]{accent-color:#f0a83c}
+#panel{background:#000}
+#panel > .row:first-child{gap:4px}
+#panel > .row:first-child > button{flex:1;min-width:0;background:transparent;color:#e6e6e6;border-radius:0;padding:6px 2px;display:flex;flex-direction:column;align-items:center;gap:8px;font-size:13px;line-height:1.2;text-transform:lowercase;text-align:center}
+#panel > .row:first-child > button::before{content:"";width:30px;height:30px;background:currentColor;-webkit-mask:var(--ic) center/contain no-repeat;mask:var(--ic) center/contain no-repeat}
+#srcBtn{--ic:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round'><path d='M12 4v16M4 12h16'/></svg>")}
+#modeBtn{--ic:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'><path d='M4 12a8 8 0 0 1 14-5.3M20 12a8 8 0 0 1-14 5.3'/><path d='M18 3v4h-4M6 21v-4h4'/></svg>")}
+#copy{--ic:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.6' stroke-linejoin='round'><rect x='9' y='7' width='11' height='14' rx='1.5'/><path d='M6 16V4h10'/></svg>")}
+#endBtn{--ic:url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='1.8'><circle cx='12' cy='12' r='9'/><circle cx='12' cy='12' r='5' fill='black'/></svg>");color:#ff5a4f}
+#chatRow{background:#141414;border:1px solid #242424;border-radius:999px;padding:6px;margin:8px 0 calc(var(--sab) + 8px);gap:6px}
+#chatIn{background:transparent;border:0;padding:10px 8px}
+#chatIn::placeholder{color:#8a8a8a}
+#mic{width:46px;height:46px;background:#3d63ff;color:#fff;border-radius:50%}
+#mic svg{width:22px;height:22px}
+#mic:active{background:#2f4fd6}
+#mic.live{background:var(--ok);color:#052b16}
+#mic.wait{background:var(--amber);color:#2a1a02}
+#mic::after{display:none}
+#mic.live{animation:micp 1.8s ease-out infinite}
+#send{width:46px;height:46px;border-radius:50%;padding:0;background:#c9c9c9;color:#111;display:flex;align-items:center;justify-content:center}
+#send svg{width:22px;height:22px}
+.msg{display:flex;gap:10px;margin:14px 0;align-items:flex-start;overflow-wrap:anywhere}
+.av{flex:none;width:40px;height:40px;border-radius:50%;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:16px}
+.mc{min-width:0;flex:1;display:flex;flex-direction:column;align-items:flex-start}
+.msg .mc b{font-family:Georgia,serif;font-style:italic;font-size:14px;font-weight:700;color:#d8d2c8}
+.msg .mc i{font-style:normal;font-size:11px;color:var(--dim);margin-left:6px}
+.bub{background:#2a2a2a;border-radius:22px;padding:11px 18px;margin-top:6px;max-width:85%;white-space:pre-wrap}
 </style></head><body>
 <div id="splash"><div class="lamp"></div><h1>Watch Together</h1></div>
 <div id="toast" role="status"></div>
@@ -102,8 +146,8 @@ button.big{width:100%;padding:15px;font-size:17px;border-radius:16px;margin-bott
 </main>
 
 <section id="room" class="screen">
- <div id="roomHead"><div><strong id="rcode"></strong><div class="small" id="rmode"></div></div>
-  <div class="row" style="flex:none"><button id="copy">Copy invite</button><button id="leave">Leave</button></div></div>
+ <div id="roomHead"><div class="rhl"><span class="rdot" aria-hidden="true"></span><div><strong id="rcode"></strong><div class="small" id="rmode"></div></div></div>
+  <button id="leave">Leave room</button></div>
  <div id="stage" class="hide"><div id="media"><div id="ytBox"></div><video id="vid" playsinline hidden></video><div id="tap"></div><div id="center" hidden><button id="back" aria-label="Back 10 seconds"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12a8 8 0 1 0 3-6.2"/><path d="M4 4v4h4"/><text x="12" y="15.5" text-anchor="middle" font-size="8" fill="currentColor" stroke="none" font-family="system-ui">10</text></svg></button><button id="pp" aria-label="Play or pause"><svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg></button><button id="fwd" aria-label="Forward 10 seconds"><svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-3-6.2"/><path d="M20 4v4h-4"/><text x="12" y="15.5" text-anchor="middle" font-size="8" fill="currentColor" stroke="none" font-family="system-ui">10</text></svg></button></div><div id="ov"><span id="ovt">No video yet</span></div></div>
   <div id="bar" hidden>
    <input id="seek" type="range" min="0" max="1000" value="0" aria-label="Seek">
@@ -113,10 +157,10 @@ button.big{width:100%;padding:15px;font-size:17px;border-radius:16px;margin-bott
     <input id="vol" type="range" min="0" max="100" value="100" style="width:56px;flex:none" aria-label="Volume"><button id="fs" aria-label="Fullscreen"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button></div>
   </div></div>
  <div id="panel">
-  <div class="row" style="flex:none;margin-bottom:6px"><button id="srcBtn">Choose video</button><button id="modeBtn">Control mode</button><button id="endBtn">End room</button></div>
+  <div class="row" style="flex:none;margin-bottom:6px"><button id="srcBtn">Choose video</button><button id="modeBtn">Control mode</button><button id="copy">Copy invite</button><button id="endBtn">End room</button></div>
   <div id="members" style="flex:none"></div><div class="small" id="hostWarn"></div><div class="small" id="micStat" aria-live="polite"></div>
   <div id="msgs"></div>
-  <div class="row" id="chatRow" style="flex:none"><input id="chatIn" maxlength="500" placeholder="Message" autocomplete="off" enterkeyhint="send"><button id="mic" type="button" aria-pressed="false" aria-label="Turn microphone on" title="Microphone"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg></button><button id="send" class="pri" style="flex:none">Send</button></div>
+  <div class="row" id="chatRow" style="flex:none"><button id="mic" type="button" aria-pressed="false" aria-label="Turn microphone on" title="Microphone"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6"/></svg></button><input id="chatIn" maxlength="500" placeholder="Message" autocomplete="off" enterkeyhint="send"><button id="send" aria-label="Send" title="Send" style="flex:none"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true"><path d="M3 11l18-8-8 18-2-8-8-2z"/></svg></button></div>
  </div>
 </section>
 
@@ -238,11 +282,16 @@ async function sendChat(){const t=$('chatIn').value.trim();if(!t)return;if(t.len
  if(Date.now()-lastChat<1000)return toast('Slow down a little.');lastChat=Date.now();
  try{await S.fb.set(S.fb.push(R(`rooms/${S.code}/chat`)),{uid:S.uid,name:name(),text:t,ts:Date.now()});$('chatIn').value=''}catch{toast('Message not sent. Check your connection.')}}
 $('send').onclick=sendChat;$('chatIn').onkeydown=e=>{if(e.key==='Enter')sendChat()};
+function avHue(n){let h=0;for(const c of n)h=(h*31+c.charCodeAt(0))%360;return 'hsl('+h+' 38% 36%)'}
 function drawChat(o){const e=$('msgs');e.textContent='';const k=Object.keys(o).sort();
  if(!k.length){const p=document.createElement('p');p.className='small';p.textContent='No messages yet. Say hello.';e.appendChild(p);return}
- k.forEach(i=>{const m=o[i],d=document.createElement('div');d.className='msg';const b=document.createElement('b');b.textContent=m.name;
+ k.forEach(i=>{const m=o[i],name=String(m.name||'Guest'),row=document.createElement('div');row.className='msg';
+  const av=document.createElement('span');av.className='av';av.textContent=(name.trim().charAt(0)||'?').toUpperCase();av.style.background=avHue(name);
+  const c=document.createElement('div');c.className='mc';
+  const b=document.createElement('b');b.textContent=name;
   const ti=document.createElement('i');ti.textContent=new Date(m.ts).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
-  d.append(b,ti,document.createElement('br'),document.createTextNode(String(m.text)));e.appendChild(d)});e.scrollTop=e.scrollHeight}
+  const bub=document.createElement('div');bub.className='bub';bub.textContent=String(m.text);
+  c.append(b,ti,bub);row.append(av,c);e.appendChild(row)});e.scrollTop=e.scrollHeight}
 
 /* ---------- source selection ---------- */
 $('srcBtn').onclick=()=>{$('srcErr').textContent='';sheet('sSrc',true)};

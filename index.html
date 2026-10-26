@@ -223,7 +223,7 @@ button.big{width:100%;padding:15px;font-size:17px;border-radius:16px;margin-bott
  <div class="err" id="setErr"></div><div class="row"><button id="setSave" class="pri">Save</button><button data-close>Close</button></div></div>
 <div class="sheet" id="sSrc"><h2>Choose video</h2><p class="small">YouTube link (watch or youtu.be)</p><input id="ytIn" placeholder="https://youtu.be/...">
  <div class="err" id="srcErr"></div><button id="ytGo" class="pri" style="width:100%">Use YouTube video</button>
- <p class="small" style="margin-top:16px">Offline video: the host picks Local video here, then everyone selects their own copy of the same file. Matching is checked by file size and length.</p>
+ <p class="small" style="margin-top:16px">Local video: pick a file from this phone. As host, your video is streamed to the room. As a guest, your video plays only on your own device and does not change what anyone else sees.</p>
  <button id="locGo" style="width:100%">Use local video</button><button id="backRoom" hidden style="width:100%;margin-top:8px">Back to room video</button><button data-close style="width:100%;margin-top:8px">Close</button></div>
 <input type="file" id="file" accept="video/mp4,video/webm,video/*" hidden>
 
@@ -344,7 +344,7 @@ function drawChat(o){const e=$('msgs');e.textContent='';const k=Object.keys(o).s
   c.append(b,ti,bub);row.append(av,c);e.appendChild(row)});e.scrollTop=e.scrollHeight}
 
 /* ---------- source selection ---------- */
-$('srcBtn').onclick=()=>{if(S.meta.hostId!==S.uid&&S.meta.source&&S.meta.source.type==='local')return $('file').click();$('srcErr').textContent='';sheet('sSrc',true)};
+$('srcBtn').onclick=()=>{$('srcErr').textContent='';sheet('sSrc',true)};
 const setSource=async s=>{try{await S.fb.update(R(`rooms/${S.code}/meta`),{source:s});await act({type:'pause'});await act({type:'seek',to:0});sheet('sSrc',false)}catch{toast('Could not change the video.')}};
 $('ytGo').onclick=()=>{if(!isHost())return toast('Only the host can change the room video.');const id=parseYT($('ytIn').value);if(!id){$('srcErr').textContent='Enter a valid YouTube watch or youtu.be link.';return}setSource({type:'youtube',id})};
 $('locGo').onclick=()=>{if(!isHost()){sheet('sSrc',false);guestPickLocal();return}setSource({type:'local',session:Date.now()})};
@@ -455,13 +455,24 @@ function guestRetry(){if(vid.srcObject||!(S.player&&S.player.stream&&rtc.guestWa
 function guestPickLocal(){
  $('file').onchange=()=>{const f=$('file').files[0];$('file').value='';if(!f)return;
   if(!f.type.startsWith('video/')&&!vid.canPlayType(f.type||'video/mp4'))return toast('That file is not a supported video.');
-  stopGuest();S.fb.remove(rtcRef(S.uid)).catch(()=>{});
-  if(objUrl)URL.revokeObjectURL(objUrl);rtc.own=true;objUrl=URL.createObjectURL(f);vid.srcObject=null;vid.src=objUrl;vid.hidden=false;
-  vid.onerror=()=>overlay('This device cannot play that format. Pick an MP4 or WebM.');
-  vid.onplay=vid.onpause=()=>{$('pp').innerHTML=vid.paused?IC.play:IC.pause};$('backRoom').hidden=false;vid.onloadedmetadata=()=>{S.player=localAdapter();overlay('');$('stage').classList.remove('hide');ctlShow(true);syncControlUI();ctlLoop();apply()};
-  overlay('Loading your copy...');$('ov').style.pointerEvents='none';
- };
- $('file').click();
+  playOwn(f)};
+ $('file').value='';$('file').click();
+}
+// Mode B: this device plays its own file. Nothing is sent to the room: no file path, no URL, no playback commands.
+function playOwn(f){
+ destroyPlayer(); // release the room video (host stream or YouTube) and any earlier own file
+ rtc.own=true;$('backRoom').hidden=false;
+ const url=objUrl=URL.createObjectURL(f),mine=()=>rtc.own&&objUrl===url; // ignore events from a file that was replaced
+ vid.src=url;vid.hidden=false;$('spd').value=1;
+ vid.onerror=()=>{if(!mine())return;const c=vid.error&&vid.error.code;
+  overlay('This device cannot play "'+f.name+'"'+(c===3?' (it could not be decoded)':c===4?' (format not supported)':'')+'. Use an MP4 (H.264/AAC) or WebM file. Tap here to choose another.');
+  S.player=null;ctlShow(false);URL.revokeObjectURL(url);objUrl=null;
+  $('ov').style.pointerEvents='auto';$('ov').onclick=()=>{$('srcErr').textContent='';sheet('sSrc',true)}};
+ vid.onloadedmetadata=()=>{if(!mine())return;S.player=localAdapter();overlay(f.name);setTimeout(()=>{if(mine())overlay('')},2500);
+  $('ov').style.pointerEvents='none';$('ov').onclick=null;$('stage').classList.remove('hide');ctlShow(true);syncControlUI();$('pp').innerHTML=IC.play;ctlLoop()};
+ vid.onplay=vid.onpause=()=>{if(mine())$('pp').innerHTML=vid.paused?IC.play:IC.pause};
+ vid.onwaiting=()=>{if(mine())overlay('Buffering...')};vid.onplaying=()=>{if(mine())overlay('')};
+ overlay('Loading your video...');$('ov').style.pointerEvents='none';$('ov').onclick=null;
 }
 function localAct(a){const pl=S.player;if(!pl)return;
  if(a.type==='play')pl.play();else if(a.type==='pause')pl.pause();

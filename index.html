@@ -346,8 +346,8 @@ function drawChat(o){const e=$('msgs');e.textContent='';const k=Object.keys(o).s
 /* ---------- source selection ---------- */
 $('srcBtn').onclick=()=>{if(S.meta.hostId!==S.uid&&S.meta.source&&S.meta.source.type==='local')return $('file').click();$('srcErr').textContent='';sheet('sSrc',true)};
 const setSource=async s=>{try{await S.fb.update(R(`rooms/${S.code}/meta`),{source:s});await act({type:'pause'});await act({type:'seek',to:0});sheet('sSrc',false)}catch{toast('Could not change the video.')}};
-$('ytGo').onclick=()=>{const id=parseYT($('ytIn').value);if(!id){$('srcErr').textContent='Enter a valid YouTube watch or youtu.be link.';return}setSource({type:'youtube',id})};
-$('locGo').onclick=()=>setSource({type:'local',session:Date.now()});
+$('ytGo').onclick=()=>{if(!isHost())return toast('Only the host can change the room video.');const id=parseYT($('ytIn').value);if(!id){$('srcErr').textContent='Enter a valid YouTube watch or youtu.be link.';return}setSource({type:'youtube',id})};
+$('locGo').onclick=()=>{if(!isHost()){sheet('sSrc',false);guestPickLocal();return}setSource({type:'local',session:Date.now()})};
 
 /* ---------- players ---------- */
 const vid=$('vid');let objUrl=null,ytReady=null;
@@ -452,6 +452,17 @@ function teardownRtc(){
 }
 function syncControlUI(){const ok=!!S.meta&&canCtl();['pp','back','fwd','spd','seek'].forEach(i=>$(i).disabled=!ok)}
 function guestRetry(){if(vid.srcObject||!(S.player&&S.player.stream&&rtc.guestWatch))return;stopGuestPc();S.fb.remove(rtcRef(S.uid)).then(()=>S.fb.set(rtcRef(S.uid,'req'),true)).catch(()=>{});rtc.retry=setTimeout(guestRetry,12000)}
+function guestPickLocal(){
+ $('file').onchange=()=>{const f=$('file').files[0];$('file').value='';if(!f)return;
+  if(!f.type.startsWith('video/')&&!vid.canPlayType(f.type||'video/mp4'))return toast('That file is not a supported video.');
+  stopGuest();S.fb.remove(rtcRef(S.uid)).catch(()=>{});
+  if(objUrl)URL.revokeObjectURL(objUrl);objUrl=URL.createObjectURL(f);vid.srcObject=null;vid.src=objUrl;vid.hidden=false;
+  vid.onerror=()=>overlay('This device cannot play that format. Pick an MP4 or WebM.');
+  vid.onloadedmetadata=()=>{S.player=localAdapter();overlay('');$('stage').classList.remove('hide');ctlShow(true);syncControlUI();ctlLoop();apply()};
+  overlay('Loading your copy...');$('ov').style.pointerEvents='none';
+ };
+ $('file').click();
+}
 /* ---------- sync + controls ---------- */
 const guard={n:0};
 const IC={play:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',pause:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>',

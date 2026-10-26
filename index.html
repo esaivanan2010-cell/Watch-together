@@ -224,7 +224,7 @@ button.big{width:100%;padding:15px;font-size:17px;border-radius:16px;margin-bott
 <div class="sheet" id="sSrc"><h2>Choose video</h2><p class="small">YouTube link (watch or youtu.be)</p><input id="ytIn" placeholder="https://youtu.be/...">
  <div class="err" id="srcErr"></div><button id="ytGo" class="pri" style="width:100%">Use YouTube video</button>
  <p class="small" style="margin-top:16px">Offline video: the host picks Local video here, then everyone selects their own copy of the same file. Matching is checked by file size and length.</p>
- <button id="locGo" style="width:100%">Use local video</button><button data-close style="width:100%;margin-top:8px">Close</button></div>
+ <button id="locGo" style="width:100%">Use local video</button><button id="backRoom" hidden style="width:100%;margin-top:8px">Back to room video</button><button data-close style="width:100%;margin-top:8px">Close</button></div>
 <input type="file" id="file" accept="video/mp4,video/webm,video/*" hidden>
 
 <script type="module">
@@ -319,7 +319,7 @@ $('endBtn').onclick=async()=>{if(!confirm('End this room for everyone?'))return;
 $('modeBtn').onclick=async()=>{if(S.meta.hostId!==S.uid)return toast('Only the host can change control mode.');
  try{await S.fb.update(R(`rooms/${S.code}/meta`),{controlMode:S.meta.controlMode==='host'?'shared':'host'})}catch(e){toast('Could not change mode.')}};
 function drawMode(){const h=S.meta.hostId===S.uid;$('rmode').textContent=(S.meta.controlMode==='host'?'Host control':'Shared control')+(h?' (you are host)':'');
- $('modeBtn').disabled=!h;$('srcBtn').disabled=!h&&!(S.meta.source&&S.meta.source.type==='local');$('endBtn').disabled=!h;$('modeBtn').textContent=S.meta.controlMode==='host'?'Switch to shared':'Switch to host only'}
+ $('modeBtn').disabled=!h;$('srcBtn').disabled=false;$('endBtn').disabled=!h;$('modeBtn').textContent=S.meta.controlMode==='host'?'Switch to shared':'Switch to host only'}
 function drawMembers(){const e=$('members');e.textContent='';if(!S.meta)return;const hostFp=(S.members[S.meta.hostId]||{}).fp;
  Object.entries(S.members).forEach(([id,m])=>{const c=document.createElement('span');c.className='chip';
   let t=(m.online?'● ':'○ ')+m.name+(id===S.meta.hostId?' (host)':'')+(id===S.uid?' (you)':'');
@@ -353,7 +353,7 @@ $('locGo').onclick=()=>{if(!isHost()){sheet('sSrc',false);guestPickLocal();retur
 const vid=$('vid');let objUrl=null,ytReady=null;
 function destroyPlayer(){teardownRtc();vid.srcObject=null;if(S.player&&S.player.destroy)S.player.destroy();S.player=null;S.src=null;vid.pause();vid.removeAttribute('src');vid.load();vid.hidden=true;if(objUrl){URL.revokeObjectURL(objUrl);objUrl=null}$('ytBox').textContent='';$('ov').style.pointerEvents='none';$('ov').onclick=null;ctlShow(false)}
 function overlay(t){$('ovt').textContent=t||'';$('ov').style.display=t?'flex':'none'}
-function loadSource(s){const key=s?JSON.stringify(s):'';if(key===S.src)return;destroyPlayer();S.src=key;
+function loadSource(s){if(rtc.own)return;const key=s?JSON.stringify(s):'';if(key===S.src)return;destroyPlayer();S.src=key;
  if(!s)return overlay(S.meta.hostId===S.uid?'Tap "Choose video" to begin':'Waiting for the host to choose a video');
  
  if(s.type==='youtube'){if(/^[\w-]{11}$/.test(s.id||''))initYT(s.id);else overlay('The host sent an invalid YouTube link.')}else if(isHost())initLocal();else initGuestStream()}
@@ -445,38 +445,44 @@ async function answerHost(v){
 }
 function stopGuestPc(){const p=rtc.guest;rtc.guest=null;if(p){p.unsubs.forEach(f=>f());try{p.pc.close()}catch{}}vid.srcObject=null}
 function stopGuest(){stopGuestPc();clearTimeout(rtc.retry);if(rtc.guestWatch){rtc.guestWatch();rtc.guestWatch=null}}
-function teardownRtc(){
+function teardownRtc(){rtc.own=false;$('backRoom').hidden=true;
  if(!S.code||!S.db){stopGuest();stopHostStream();return}
  if(isHost()){rtc.seen.forEach(u=>S.fb.remove(rtcRef(u)).catch(()=>{}));rtc.seen=[];stopHostStream()}
  else{stopGuest();S.fb.remove(rtcRef(S.uid)).catch(()=>{})}
 }
-function syncControlUI(){const ok=!!S.meta&&canCtl();['pp','back','fwd','spd','seek'].forEach(i=>$(i).disabled=!ok)}
+function syncControlUI(){const ok=!!S.meta&&(rtc.own||canCtl());['pp','back','fwd','spd','seek'].forEach(i=>$(i).disabled=!ok)}
 function guestRetry(){if(vid.srcObject||!(S.player&&S.player.stream&&rtc.guestWatch))return;stopGuestPc();S.fb.remove(rtcRef(S.uid)).then(()=>S.fb.set(rtcRef(S.uid,'req'),true)).catch(()=>{});rtc.retry=setTimeout(guestRetry,12000)}
 function guestPickLocal(){
  $('file').onchange=()=>{const f=$('file').files[0];$('file').value='';if(!f)return;
   if(!f.type.startsWith('video/')&&!vid.canPlayType(f.type||'video/mp4'))return toast('That file is not a supported video.');
   stopGuest();S.fb.remove(rtcRef(S.uid)).catch(()=>{});
-  if(objUrl)URL.revokeObjectURL(objUrl);objUrl=URL.createObjectURL(f);vid.srcObject=null;vid.src=objUrl;vid.hidden=false;
+  if(objUrl)URL.revokeObjectURL(objUrl);rtc.own=true;objUrl=URL.createObjectURL(f);vid.srcObject=null;vid.src=objUrl;vid.hidden=false;
   vid.onerror=()=>overlay('This device cannot play that format. Pick an MP4 or WebM.');
-  vid.onloadedmetadata=()=>{S.player=localAdapter();overlay('');$('stage').classList.remove('hide');ctlShow(true);syncControlUI();ctlLoop();apply()};
+  vid.onplay=vid.onpause=()=>{$('pp').innerHTML=vid.paused?IC.play:IC.pause};$('backRoom').hidden=false;vid.onloadedmetadata=()=>{S.player=localAdapter();overlay('');$('stage').classList.remove('hide');ctlShow(true);syncControlUI();ctlLoop();apply()};
   overlay('Loading your copy...');$('ov').style.pointerEvents='none';
  };
  $('file').click();
 }
+function localAct(a){const pl=S.player;if(!pl)return;
+ if(a.type==='play')pl.play();else if(a.type==='pause')pl.pause();
+ else if(a.type==='seek'&&Number.isFinite(a.to))pl.seek(a.to);
+ else if(a.type==='speed')pl.rate(a.value)}
+function exitOwn(){if(!rtc.own)return;rtc.own=false;$('backRoom').hidden=true;S.src=null;if(S.meta)loadSource(S.meta.source);syncControlUI()}
+$('backRoom').onclick=()=>{sheet('sSrc',false);exitOwn()};
 /* ---------- sync + controls ---------- */
 const guard={n:0};
 const IC={play:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',pause:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>',
  vol:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>',muted:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9l5 6M21 9l-5 6"/></svg>'};
-function apply(){const p=S.pb,pl=S.player;if(!p||!pl||!pl.ready)return;const d=pl.dur()||Infinity,e=expected(p,now(),d);
+function apply(){const p=S.pb,pl=S.player;if(!p||!pl||!pl.ready||rtc.own)return;const d=pl.dur()||Infinity,e=expected(p,now(),d);
  guard.n++;try{if(pl.rate)pl.rate(p.speed);if(Math.abs(pl.time()-e)>TOL)pl.seek(e);p.playing&&e<d?pl.play():pl.pause()}finally{setTimeout(()=>guard.n--,300)}
  if(p.playing!==wasPlaying){wasPlaying=p.playing;if(p.playing)wake()}
  $('pp').innerHTML=p.playing?IC.pause:IC.play;$('spd').value=p.speed}
-async function act(a){if(!canCtl()){toast(S.meta&&S.meta.controlMode==='host'?'Only the host controls playback.':'You cannot control playback.');apply();return}
+async function act(a){if(rtc.own)return localAct(a);if(!canCtl()){toast(S.meta&&S.meta.controlMode==='host'?'Only the host controls playback.':'You cannot control playback.');apply();return}
  try{await S.fb.runTransaction(R(`rooms/${S.code}/playback`),cur=>nextState(cur,a,now())||undefined)}catch{toast('Sync failed. Check your connection.')}}
-$('pp').onclick=async()=>{const d=S.player&&S.player.dur();
+$('pp').onclick=async()=>{if(rtc.own){S.player.playing()?S.player.pause():S.player.play();return}const d=S.player&&S.player.dur();
  if(canCtl()&&d&&expected(S.pb,now())>=d){await act({type:'seek',to:0});return act({type:'play'})}
  act({type:S.pb&&S.pb.playing?'pause':'play'})};
-const jump=d=>S.player&&act({type:'seek',to:Math.min(Math.max(0,expected(S.pb,now())+d),S.player.dur()||1e9)});
+const jump=d=>{if(!S.player)return;if(rtc.own)return S.player.seek(Math.max(0,S.player.time()+d));act({type:'seek',to:Math.min(Math.max(0,expected(S.pb,now())+d),S.player.dur()||1e9)})};
 $('back').onclick=()=>jump(-10);$('fwd').onclick=()=>jump(10);
 SPEEDS.forEach(s=>{const o=document.createElement('option');o.value=s;o.textContent=s+'x';$('spd').appendChild(o)});$('spd').value=1;
 $('spd').onchange=()=>act({type:'speed',value:+$('spd').value});

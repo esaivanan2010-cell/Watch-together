@@ -352,7 +352,7 @@ $('locGo').onclick=()=>{if(!isHost()){sheet('sSrc',false);guestPickLocal();retur
 /* ---------- players ---------- */
 const vid=$('vid');let objUrl=null,ytReady=null;
 function destroyPlayer(){teardownRtc();vid.srcObject=null;if(S.player&&S.player.destroy)S.player.destroy();S.player=null;S.src=null;vid.pause();vid.removeAttribute('src');vid.load();vid.hidden=true;if(objUrl){URL.revokeObjectURL(objUrl);objUrl=null}$('ytBox').textContent='';$('ov').style.pointerEvents='none';$('ov').onclick=null;ctlShow(false)}
-function overlay(t){$('ovt').textContent=t||'';$('ov').style.display=t?'flex':'none'}
+function overlay(t){S.buf=t==='Buffering...';$('ovt').textContent=t||'';$('ov').style.display=t?'flex':'none'}
 function loadSource(s){if(rtc.own)return;const key=s?JSON.stringify(s):'';if(key===S.src)return;destroyPlayer();S.src=key;
  if(!s)return overlay(S.meta.hostId===S.uid?'Tap "Choose video" to begin':'Waiting for the host to choose a video');
  
@@ -365,7 +365,7 @@ function initLocal(){overlay('Tap to choose your video');vid.hidden=false;
   vid.onloadedmetadata=async()=>{S.player=localAdapter();overlay(f.name);setTimeout(()=>overlay(''),2500);startHostStream();if(Number.isFinite(vid.duration))S.fb.update(R(`rooms/${S.code}/meta`),{duration:vid.duration}).catch(()=>{});$('ov').style.pointerEvents='none';ctlShow(true);
    try{await S.fb.update(R(`rooms/${S.code}/members/${S.uid}`),{fp:f.size+':'+Math.round(vid.duration)})}catch{}
    $('seek').disabled=false;apply();ctlLoop()};
-  vid.onwaiting=()=>overlay('Buffering...');vid.onplaying=()=>overlay('')};
+  vid.onwaiting=()=>overlay('Buffering...');vid.onplaying=()=>overlay('');vid.oncanplay=()=>{if(S.buf)overlay('')}};
  $('file').value=''}
 const localAdapter=()=>({ready:true,time:()=>vid.currentTime,dur:()=>vid.duration||0,seek:t=>{vid.currentTime=t},rate:r=>{vid.playbackRate=r},
  play:()=>vid.play().catch(()=>overlay('Tap the screen to start playback')),pause:()=>vid.pause(),playing:()=>!vid.paused,vol:v=>{vid.volume=v},mute:m=>{vid.muted=m}});
@@ -471,7 +471,7 @@ function playOwn(f){
  vid.onloadedmetadata=()=>{if(!mine())return;S.player=localAdapter();overlay(f.name);setTimeout(()=>{if(mine())overlay('')},2500);
   $('ov').style.pointerEvents='none';$('ov').onclick=null;$('stage').classList.remove('hide');ctlShow(true);syncControlUI();$('pp').innerHTML=IC.play;ctlLoop()};
  vid.onplay=vid.onpause=()=>{if(mine())$('pp').innerHTML=vid.paused?IC.play:IC.pause};
- vid.onwaiting=()=>{if(mine())overlay('Buffering...')};vid.onplaying=()=>{if(mine())overlay('')};
+ vid.onwaiting=()=>{if(mine())overlay('Buffering...')};vid.onplaying=()=>{if(mine())overlay('')};vid.oncanplay=()=>{if(mine()&&S.buf)overlay('')};
  overlay('Loading your video...');$('ov').style.pointerEvents='none';$('ov').onclick=null;
 }
 function localAct(a){const pl=S.player;if(!pl)return;
@@ -481,11 +481,12 @@ function localAct(a){const pl=S.player;if(!pl)return;
 function exitOwn(){if(!rtc.own)return;rtc.own=false;$('backRoom').hidden=true;S.src=null;if(S.meta)loadSource(S.meta.source);syncControlUI()}
 $('backRoom').onclick=()=>{sheet('sSrc',false);exitOwn()};
 /* ---------- sync + controls ---------- */
-const guard={n:0};
+const guard={n:0},SETTLE=8000;
 const IC={play:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M8 5v14l11-7z"/></svg>',pause:'<svg viewBox="0 0 24 24" width="24" height="24" fill="currentColor" aria-hidden="true"><path d="M7 5h4v14H7zM13 5h4v14h-4z"/></svg>',
  vol:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9a4 4 0 0 1 0 6M18.5 6.5a8 8 0 0 1 0 11"/></svg>',muted:'<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M16 9l5 6M21 9l-5 6"/></svg>'};
 function apply(){const p=S.pb,pl=S.player;if(!p||!pl||!pl.ready||rtc.own)return;const d=pl.dur()||Infinity,e=expected(p,now(),d);
- guard.n++;try{if(pl.rate)pl.rate(p.speed);if(Math.abs(pl.time()-e)>TOL)pl.seek(e);p.playing&&e<d?pl.play():pl.pause()}finally{setTimeout(()=>guard.n--,300)}
+ const fresh=p!==S.ap||pl!==S.apl;S.ap=p;S.apl=pl; // a new room state (like +10/-10) always syncs; routine re-checks must not re-seek while that seek is still buffering/settling
+ guard.n++;try{if(pl.rate)pl.rate(p.speed);if(Math.abs(pl.time()-e)>TOL&&(fresh||!S.buf&&Date.now()-(S.seekAt||0)>SETTLE)){pl.seek(e);S.seekAt=Date.now()}p.playing&&e<d?pl.play():pl.pause()}finally{setTimeout(()=>guard.n--,300)}
  if(p.playing!==wasPlaying){wasPlaying=p.playing;if(p.playing)wake()}
  $('pp').innerHTML=p.playing?IC.pause:IC.play;$('spd').value=p.speed}
 async function act(a){if(rtc.own)return localAct(a);if(!canCtl()){toast(S.meta&&S.meta.controlMode==='host'?'Only the host controls playback.':'You cannot control playback.');apply();return}
